@@ -1,9 +1,6 @@
 import { z } from "zod"
 import { createContext, createSignal, useContext, type JSXElement } from "solid-js"
 
-  // TODO: add error handling
-  // TODO: add asynchronous loading states for field setValue and field  setMeta
-
 function get<T = any>(obj: any, path: string): T {
   const keys = path.split('.');
   let result = obj;
@@ -32,6 +29,7 @@ function set(obj: any, path: string, value: any): any {
 }
 
 export type Update<T> = T | ((prev: T) => T) | ((prev: T) => Promise<T>)
+export type SyncUpdate<T> = T | ((prev: T) => T)
 
 export const getUpdatedValue = async <T,>(prev: T, update: Update<T>): Promise<T> => {
   if (update instanceof Function) {
@@ -41,10 +39,17 @@ export const getUpdatedValue = async <T,>(prev: T, update: Update<T>): Promise<T
   return update;
 }
 
+export const getInitialState = async <T,>(init: Initializer<T>): Promise<T> => {
+  if (init instanceof Function) {
+    const result = init();
+    return result instanceof Promise ? await result : result;
+  }
+  return init;
+}
+
 export type Initializer<T> = T | (() => T) | (() => Promise<T>) 
 
 export type FieldMetaState = {
-  errors: string[]
   touched: boolean
   dirty: boolean
   loading: boolean
@@ -53,14 +58,14 @@ export type FieldMetaState = {
   readOnly: boolean
 }
 
-export type FieldUpdatingState = {
-  isSettingMeta: boolean 
-  isSettingValue: boolean
+export type FieldStatus = {
+  isSettingValue: boolean;
+  isSettingMeta: boolean;
+  isSettingCustomErrors: false,
 }
 
 export const defaultFieldMetaState: FieldMetaState = {
   dirty: false,
-  errors: [],
   loading: false,
   touched: false,
   disabled: false,
@@ -71,38 +76,60 @@ export const defaultFieldMetaState: FieldMetaState = {
 export type FieldState<T> = { 
   value: T,
   setValue: (update: Update<T>) => Promise<void>,
-  isSettingValue: () => boolean
   meta: FieldMetaState
   setMeta: (update: Update<FieldMetaState>) => Promise<void>,
-  isSettingMeta: () => boolean
+  errors: string[]
+  customErrors: string[]
+  setCustomErrors:  (update: Update<string[]>) => Promise<void>
+  clearCustomErrors:  () => Promise<void>
+  reset: () => Promise<void>
 }
 
-export type Errors = {
+export type FormixErrors = {
   fieldErrors: {
     [x: string]: string[] | undefined;
     [x: number]: string[] | undefined;
     [x: symbol]: string[] | undefined;
   }
-
   formErrors: string[]
 }
 
-export type FormState<State = any> = {
+export type FormStatus = {
+  initializing: boolean;
+  submitting: boolean;
+  validating: boolean;
+  isSettingState: boolean;
+  isSettingCustomErrors: boolean;
+  isSettingMeta: boolean;
+};
+
+export type FormContext<State = any> = {
+  initialState: () => State
+
   state: () => State
   setState: (update: Update<State>) => Promise<void>
-  isSettingState: () => boolean
+
   meta: () => Record<string, FieldMetaState>
   setMeta: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
-  isSettingMeta: () => boolean
-  errors: () => Errors,
-  setErrors: (update: Update<Errors>) => void,
+
+  errors: () => FormixErrors,
+
+  customErrors: () => FormixErrors
+  setCustomErrors: (update: Update<FormixErrors>) => void
+  clearCustomErrors: () => void
+
   reset: () => void
-  initializing: () => boolean
-  submitting: () => boolean
-  validating: () => boolean
+  formStatus: () => FormStatus
+  fieldStatuses: () => Record<string, FieldStatus>
 }
 
-const context = createContext<FormState>()
+type FieldStatusesContext = {
+  fieldStatuses: () => Record<string, FieldStatus>
+  setFieldStatuses: (update: SyncUpdate<Record<string, FieldStatus>>) => void
+}
+
+const formContext = createContext<FormContext>()
+const fieldStatusesContext = createContext<FieldStatusesContext>(undefined)
 
 export type FormProps<
   Schema extends z.ZodTypeAny, 
@@ -110,7 +137,7 @@ export type FormProps<
 > = {
   schema: Schema
   initialState: Initializer<State> 
-  onSubmit: (state: State) => void | Promise<void>,
+  onSubmit: <T>(state: State) => T | Promise<T>,
   children: JSXElement
 }
 
@@ -118,37 +145,60 @@ export const Form = <
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>
 >(props: FormProps<Schema, State>) => {
-  const [state, setInternalState] = createSignal<State | undefined>(undefined)
-  const [meta, setInternalMeta] = createSignal<Record<string, FieldMetaState>>({})
-  const [fieldUpdatingStates, setFieldUpdatingState] = createSignal<Record<string, FieldUpdatingState>>({})
-  const [initializing, setInitializing] = createSignal(false)
-  const [submitting, setSubmitting] = createSignal(false)
-  const [validating, setValidating] = createSignal(false)
-  const [isSettingState, setIsSettingState] = createSignal(false)
-  const [isSettingMeta, setIsSettingMeta] = createSignal(false)
-  const [errors, setErrors] = createSignal<Errors>({
+  const [state, setStateInternal] = createSignal<State | undefined>(undefined)
+  const [meta, setMetaInternal] = createSignal<Record<string, FieldMetaState>>({})
+
+  const [errors, setErrors] = createSignal<FormixErrors>({
+    fieldErrors: {},
+    formErrors: []
+  })
+  const [customErrors, setCustomErrorsInternal] = createSignal<FormixErrors>({
     fieldErrors: {},
     formErrors: []
   })
 
+  const [formStatus, setFormStatus] = createSignal<FormStatus>({
+    initializing: false,
+    submitting: false,
+    validating: false,
+    isSettingState: false,
+    isSettingCustomErrors: false,
+    isSettingMeta: false,
+  });
+
+  const [fieldStatuses, setFieldStatuses] = createSignal<Record<string, FieldStatus>>({});
+
+  const revalidate = async () => {
+    setFormStatus(prev => ({ ...prev, validating: true }))
+    const validationResult = await props.schema.safeParseAsync(state())
+    setFormStatus(prev => ({ ...prev, validating: false }))
+    return validationResult
+  }
+
   let initialState: State
-  if (props.initialState instanceof Function) {
-    const result = props.initialState();
-    if(result instanceof Promise) {
-      setInitializing(true)
-      result
-        .then((response) => { 
-          initialState = response
-          setInternalState(response) 
-        })
-        .finally(() => { setInitializing(false) })
-    } else {
-      initialState = result
-      setInternalState(result)
+  setFormStatus(prev => ({ ...prev, initializing: true }))
+  getInitialState(props.initialState)
+  .then(async (response) => {
+    initialState = response
+    setStateInternal(response)
+    
+    const validationResult = await revalidate()
+    if(!validationResult.success) {
+      setErrors(validationResult.error.flatten())
     }
-  } else {
-    initialState = props.initialState
-    setInternalState(props.initialState)
+  })
+  .finally(() => {
+    setFormStatus(prev => ({ ...prev, initializing: false }))
+  })
+
+  const setCustomErrors = async (update: Update<FormixErrors>) => {
+    try {
+      setFormStatus(prev => ({ ...prev, isSettingCustomErrors: true }))
+      const next = await getUpdatedValue(customErrors(), update)
+      setCustomErrorsInternal(next)
+    } finally {
+      setFormStatus(prev => ({ ...prev, isSettingCustomErrors: false }))
+    }
   }
 
   const setState = async (update: Update<State>) => {
@@ -157,80 +207,88 @@ export const Form = <
       throw new Error("@gapu/formix: Cannot call 'setState' with an update callback if the state is not initialized yet");
     }
     try {
-      setIsSettingState(true)
+      setFormStatus(prev => ({ ...prev, isSettingState: true }))
       const next = await getUpdatedValue(currentState as State, update);
-      setInternalState(next)
+      setStateInternal(next)
 
-      setValidating(true)
-      const validationResult = await props.schema.safeParseAsync(state())
-      setValidating(false)
-
+      const validationResult = await revalidate()
       if(!validationResult.success) {
-        const errors = validationResult.error.flatten()
-        
+        setErrors(validationResult.error.flatten())
       }
     } finally {
-      setIsSettingState(false)
+      setFormStatus(prev => ({ ...prev, isSettingState: false }))
     }
   }
 
   const setMeta = async (update: Update<Record<string, FieldMetaState>>) => {
     try {
-      setIsSettingMeta(true)
+      setFormStatus(prev => ({ ...prev, isSettingMeta: true }))
       const next = await getUpdatedValue(meta(), update)
-      setInternalMeta(next)
+      setMetaInternal(next)
     } finally {
-      setIsSettingMeta(false)
+      setFormStatus(prev => ({ ...prev, isSettingMeta: false }))
     }
   }
 
   const reset = () => setState(initialState)
 
+  const clearCustomErrors = () => {
+    setCustomErrors({
+      fieldErrors: {},
+      formErrors: []
+    })
+  }
+
+  const _initialState = () => initialState
 
   return (
-    <context.Provider value={{
+    <formContext.Provider value={{
+      initialState: _initialState,
       state,
       setState,
-      isSettingState,
+      formStatus,
+      fieldStatuses,
       meta,
       setMeta,
-      isSettingMeta,
       errors,
-      setErrors,
-      initializing,
-      submitting,
-      validating,
-      reset
+      customErrors,
+      setCustomErrors,
+      clearCustomErrors,
+      reset,
     }}>
-      <form onSubmit={async (e) => {
-        e.preventDefault();
-
-        setValidating(true)
-        const validationResult = await props.schema.safeParseAsync(state())
-        setValidating(false)
-
-        if(!validationResult.success) return
-        try {
-          setSubmitting(true)
-          await props.onSubmit(validationResult.data)
-        } finally {
-          setSubmitting(false)
-        }
+      <fieldStatusesContext.Provider value={{
+        fieldStatuses,
+        setFieldStatuses
       }}>
-        {props.children}
-      </form>
-    </context.Provider>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+
+          const validationResult = await revalidate()
+
+          if(!validationResult.success) return
+          try {
+            setFormStatus(prev => ({ ...prev, submitting: true }))
+            return await props.onSubmit(validationResult.data)
+          } finally {
+            setFormStatus(prev => ({ ...prev, submitting: false }))
+          }
+        }}>
+          {props.children}
+        </form>
+      </fieldStatusesContext.Provider>
+    </formContext.Provider>
   )
 }
 
 
 export const useField = <T,>(path: string): (() => FieldState<T>)  => {
-  const f = useForm()
+  const form = useForm()
+  const uf = useContext(fieldStatusesContext)!
 
   const getMeta = () => {
-    const meta = f.meta()[path] 
+    const meta = form.meta()[path] 
     if(!meta) {
-      f.setMeta((prev) => ({
+      form.setMeta((prev) => ({
         ...prev,
         [path]: defaultFieldMetaState
       }))
@@ -239,31 +297,79 @@ export const useField = <T,>(path: string): (() => FieldState<T>)  => {
     return meta
   } 
 
-  const setValue = async (update: Update<T>) => {
-    const next = await getUpdatedValue(get(f.state(), path), update)
-    const state = f.state()
-    const nextState = set(state, path, next)
-    f.setState(nextState)
-  }
-
-  const setMeta = async (update: Update<FieldMetaState>) => {
-    const next = await getUpdatedValue(getMeta(), update)
-    f.setMeta(prev => ({
+  const setStatus = (key: keyof FieldStatus, value: boolean) => {
+    uf.setFieldStatuses((prev) => ({
       ...prev,
-      [path]: next
+      [path]: {
+        ...prev[path] ?? {
+          isSettingMeta: false, 
+          isSettingValue: false,
+          isSettingCustomErrors: false
+        },
+        [key]: value
+      }
     }))
   }
 
+  const setValue = async (update: Update<T>) => {
+    try {
+      setStatus("isSettingValue", true)
+      const next = await getUpdatedValue(get(form.state(), path), update)
+      const state = form.state()
+      const nextState = set(state, path, next)
+      form.setState(nextState)
+    } finally {
+      setStatus("isSettingValue", false)
+    }
+  }
+
+  const setMeta = async (update: Update<FieldMetaState>) => {
+    try {
+      setStatus("isSettingMeta", true)
+      const next = await getUpdatedValue(getMeta(), update)
+      form.setMeta(prev => ({
+        ...prev,
+        [path]: next
+      }))
+    } catch {
+      setStatus("isSettingMeta", false)
+    }
+  }
+
+  const setCustomErrors = async (update: Update<string[]>) => {
+    try {
+      setStatus("isSettingCustomErrors", true)
+      const next = await getUpdatedValue(form.errors().fieldErrors[path] ?? [], update)
+      form.setCustomErrors(prev => ({
+        ...prev,
+        fieldErrors: {
+          ...prev.fieldErrors,
+          [path]: next
+        }
+      }))
+    } finally {
+      setStatus("isSettingCustomErrors", false)
+    }
+  }
+  
+  const reset = () => setValue(get(form.initialState(), path))
+  const clearCustomErrors = () => setCustomErrors([])
+
   return () => ({
-      value: get(f.state(), path),
+      value: get(form.state(), path),
       setValue,
       meta: getMeta(),
-      setMeta
+      setMeta,
+      errors: form.errors().fieldErrors[path] ?? [],
+      customErrors: form.customErrors().fieldErrors[path] ?? [],
+      setCustomErrors,
+      clearCustomErrors,
+      reset
   })
 }
 
-export const useForm = <T = any,>(): FormState<T> => {
-  const c = useContext(context)
+export const useForm = <T = any,>(): FormContext<T> => {
+  const c = useContext(formContext)
   if(!c) {
     throw new Error("@gapu/formix: useForm/useField should be used under the 'Form' provider")
   }
