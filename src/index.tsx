@@ -16,7 +16,27 @@ function get<T = any>(obj: any, path: string): T {
   return result;
 }
 
-export type Update<T> = T | ((prev: T) => T) | ((prev: T) => Promise<T>) 
+function set(obj: any, path: string, value: any): any {
+  if (path === '') {
+    return obj;
+  }
+
+  const keys = path.split('.');
+  const lastKey = keys.pop()!;
+  const target = keys.reduce((acc, key) => acc[key], obj);
+  target[lastKey] = value;
+  return obj;
+}
+
+export type Update<T> = T | ((prev: T) => T) | ((prev: T) => Promise<T>)
+
+export const getUpdatedValue = async <T,>(prev: T, update: Update<T>): Promise<T> => {
+  if (update instanceof Function) {
+    const result = update(prev);
+    return result instanceof Promise ? await result : result;
+  }
+  return update;
+}
 
 export type Initializer<T> = T | (() => T) | (() => Promise<T>) 
 
@@ -40,14 +60,19 @@ export const defaultFieldMetaState: FieldMetaState = {
   validating: false
 }
 
-export type FieldState<T> = FieldMetaState & { value: T }
+export type FieldState<T> = { 
+  value: T,
+  setValue: (update: Update<T>) => Promise<void>,
+  meta: FieldMetaState
+  setMeta: (update: Update<FieldMetaState>) => Promise<void>
+}
 
 export type FormState<State = any> = {
   state: () => State
-  setState: (update: Update<State>) => void
+  setState: (update: Update<State>) => Promise<void>
   meta: () => Record<string, FieldMetaState>
-  setMeta: (update: Update<Record<string, FieldMetaState>>) => void
-  loading: () => boolean
+  setMeta: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
+  initializing: () => boolean
   submitting: () => boolean
   validating: () => boolean
 }
@@ -69,48 +94,35 @@ export const Form = <
   State extends z.infer<Schema>
 >(props: FormProps<Schema, State>) => {
   const [state, setInternalState] = createSignal<State | undefined>(undefined)
-  const [meta, setMeta] = createSignal<Record<string, FieldMetaState>>({})
+  const [meta, setInternalMeta] = createSignal<Record<string, FieldMetaState>>({})
   const [initializing, setInitializing] = createSignal(false)
   const [submitting, setSubmitting] = createSignal(false)
   const [validating, setValidating] = createSignal(false)
 
-  const setState = async (update: Update<State>) => {
-    const currentState = state()
-
-    if(update instanceof Function) {
-      if(!currentState) {
-        throw new Error("@gapu/formix: Cannot call 'setState' with an update callback if the state is not initialized yet")
-      }
-      const _state = update(currentState)
-      if(_state instanceof Promise) {
-        setInitializing(true)
-        _state.then((result) => {
-          setInternalState(result)
-        }).finally(() => {
-          setInitializing(false)
-        })
-      } else {
-        setInternalState(_state)
-      }
+  if (props.initialState instanceof Function) {
+    const result = props.initialState();
+    if(result instanceof Promise) {
+      setInitializing(true)
+      result
+        .then((response) => { setInternalState(response) })
+        .finally(() => { setInitializing(false) })
     } else {
-      setInternalState(update)
+      setInternalState(result)
     }
   }
 
-  if(props.initialState instanceof Function) {
-    const _state = props.initialState()
-    if(_state instanceof Promise) {
-      setInitializing(true)
-      _state.then((result) => {
-        setInternalState(result)
-      }).finally(() => {
-        setInitializing(false)
-      })
-    } else {
-      setInternalState(_state)
+  const setState = async (update: Update<State>) => {
+    const currentState = state();
+    if (currentState === undefined && update instanceof Function) {
+      throw new Error("@gapu/formix: Cannot call 'setState' with an update callback if the state is not initialized yet");
     }
-  } else {
-    setInternalState(props.initialState)
+    const next = await getUpdatedValue(currentState as State, update);
+    setInternalState(next)
+  }
+
+  const setMeta = async (update: Update<Record<string, FieldMetaState>>) => {
+    const next = await getUpdatedValue(meta(), update)
+    setInternalMeta(next)
   }
 
   return (
@@ -119,15 +131,23 @@ export const Form = <
       setState,
       meta,
       setMeta,
-      loading: initializing,
+      initializing,
       submitting,
       validating
     }}>
       <form onSubmit={async (e) => {
         e.preventDefault();
+
+        setValidating(true)
         const validationResult = await props.schema.safeParseAsync(state())
-        if(validationResult.success) {
+        setValidating(false)
+
+        if(!validationResult.success) return
+        try {
           setSubmitting(true)
+          await props.onSubmit(validationResult.data)
+        } finally {
+          setSubmitting(false)
         }
       }}>
         {props.children}
@@ -140,24 +160,38 @@ export const Form = <
 export const useField = <T,>(path: string): (() => FieldState<T>)  => {
   const f = useForm()
 
-  const getPathMeta = (path: string) => {
-    const value = f.meta()[path] 
-    if(!value) {
-
+  const getMeta = () => {
+    const meta = f.meta()[path] 
+    if(!meta) {
       f.setMeta((prev) => ({
         ...prev,
         [path]: defaultFieldMetaState
       }))
-
       return defaultFieldMetaState
     } 
-    
-    return value
+    return meta
   } 
+
+  const setValue = async (update: Update<T>) => {
+    const next = await getUpdatedValue(get(f.state(), path), update)
+    const state = f.state()
+    const nextState = set(state, path, next)
+    f.setState(nextState)
+  }
+
+  const setMeta = async (update: Update<FieldMetaState>) => {
+    const next = await getUpdatedValue(getMeta(), update)
+    f.setMeta(prev => ({
+      ...prev,
+      [path]: next
+    }))
+  }
 
   return () => ({
       value: get(f.state(), path),
-      ...getPathMeta(path)
+      setValue,
+      meta: getMeta(),
+      setMeta
   })
 }
 
