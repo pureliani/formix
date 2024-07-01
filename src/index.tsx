@@ -53,7 +53,6 @@ export type FieldMetaState = {
   touched: boolean
   dirty: boolean
   loading: boolean
-  validating: boolean
   disabled: boolean
   readOnly: boolean
 }
@@ -70,7 +69,6 @@ export const defaultFieldMetaState: FieldMetaState = {
   touched: false,
   disabled: false,
   readOnly: false,
-  validating: false
 }
 
 export type FieldState<T> = { 
@@ -368,7 +366,83 @@ export const useField = <T,>(path: string): (() => FieldState<T>)  => {
   })
 }
 
-export const useForm = <T = any,>(): FormContext<T> => {
+export type ArrayFieldState<T> = FieldState<T[]> & {
+  push: (item: T) => Promise<void>,
+  remove: (index: number) => Promise<void>,
+  move: (from: number, to: number) => Promise<void>,
+  insert: (index: number, item: T) => Promise<void>,
+  replace: (index: number, item: T) => Promise<void>,
+  clear: () => Promise<void>,
+  swap: (indexA: number, indexB: number) => Promise<void>
+}
+
+export const useArrayField = <T,>(path: string): (() => ArrayFieldState<T>) => {
+  const field = useField<T[]>(path);
+
+  return () => {
+    const baseField = field();
+
+    const push = async (item: T) => {
+      await baseField.setValue(prev => [...prev, item]);
+    };
+
+    const remove = async (index: number) => {
+      await baseField.setValue(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const move = async (from: number, to: number) => {
+      await baseField.setValue(prev => {
+        const newArray = [...prev];
+        const [removed] = newArray.splice(from, 1);
+        newArray.splice(to, 0, removed!);
+        return newArray;
+      });
+    };
+
+    const insert = async (index: number, item: T) => {
+      await baseField.setValue(prev => {
+        const newArray = [...prev];
+        newArray.splice(index, 0, item);
+        return newArray;
+      });
+    };
+
+    const replace = async (index: number, item: T) => {
+      await baseField.setValue(prev => {
+        const newArray = [...prev];
+        newArray[index] = item;
+        return newArray;
+      });
+    };
+
+    const clear = async () => {
+      await baseField.setValue([]);
+    };
+
+    const swap = async (indexA: number, indexB: number) => {
+      await baseField.setValue(prev => {
+        const newArray = [...prev];
+        const temp = newArray[indexA]!;
+        newArray[indexA] = newArray[indexB]!;
+        newArray[indexB] = temp;
+        return newArray;
+      });
+    };
+
+    return {
+      ...baseField,
+      push,
+      remove,
+      move,
+      insert,
+      replace,
+      clear,
+      swap
+    };
+  };
+};
+
+export function useForm<T = any,>(): FormContext<T> {
   const c = useContext(formContext)
   if(!c) {
     throw new Error("@gapu/formix: useForm/useField should be used under the 'Form' provider")
