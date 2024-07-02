@@ -1,6 +1,44 @@
 import { z } from "zod"
 import { createContext, createSignal, useContext, type JSXElement } from "solid-js"
 
+type UndoRedoState<T> = {
+  history: T[];
+  currentIndex: number;
+};
+
+function createUndoRedoManager<T>(initialState: T, maxHistorySize: number = 350) {
+  let state: UndoRedoState<T> = {
+    history: [initialState],
+    currentIndex: 0,
+  };
+
+  const setState = (newState: T) => {
+    state = {
+      history: [
+        ...state.history.slice(0, state.currentIndex + 1),
+        newState
+      ].slice(-maxHistorySize),
+      currentIndex: Math.min(state.currentIndex + 1, maxHistorySize - 1),
+    };
+  };
+
+  const undo = (steps: number = 1): T => {
+    state.currentIndex = Math.max(0, state.currentIndex - steps);
+    return state.history[state.currentIndex]!;
+  };
+
+  const redo = (steps: number = 1): T => {
+    state.currentIndex = Math.min(state.history.length - 1, state.currentIndex + steps);
+    return state.history[state.currentIndex]!;
+  };
+
+  const canUndo = (steps: number = 1): boolean => state.currentIndex >= steps;
+  const canRedo = (steps: number = 1): boolean => state.currentIndex + steps < state.history.length;
+  const getCurrentState = (): T => state.history[state.currentIndex]!;
+
+  return { setState, undo, redo, canUndo, canRedo, getCurrentState };
+}
+
 function get<T = any>(obj: any, path: string): T {
   const keys = path.split('.');
   let result = obj;
@@ -98,19 +136,19 @@ export type FormStatus = {
 
 export type FormContext<State = any> = {
   initialState: () => State
-
   state: () => State
   setState: (update: Update<State>) => Promise<void>
-
   fieldMetas: () => Record<string, FieldMetaState>
   setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
-
   errors: () => FormErrors,
-
   reset: () => Promise<void>
   submit: () => Promise<void>
   formStatus: () => FormStatus
   fieldStatuses: () => Record<string, FieldStatus>
+  undo: (steps?: number) => Promise<void>
+  redo: (steps?: number) => Promise<void>
+  canUndo: (steps?: number) => boolean
+  canRedo: (steps?: number) => boolean
 }
 
 type FieldStatusesContext = {
@@ -137,6 +175,7 @@ export function Form<
 >(props: FormProps<Schema, State>) {
   const [state, setStateInternal] = createSignal<State | undefined>(undefined)
   const [fieldMetas, setFieldMetasInternal] = createSignal<Record<string, FieldMetaState>>({})
+  const [undoRedoManager, setUndoRedoManager] = createSignal<ReturnType<typeof createUndoRedoManager<State>> | undefined>(undefined)
 
   const [errors, setErrors] = createSignal<FormErrors>({
     fieldErrors: {},
@@ -161,20 +200,22 @@ export function Form<
   }
 
   let initialState: State
-  setFormStatus(prev => ({ ...prev, initializing: true }))
-  getInitialState(props.initialState)
-  .then(async (response) => {
-    initialState = response
-    setStateInternal(response)
-    
-    const validationResult = await revalidate()
-    if(!validationResult.success) {
-      setErrors(validationResult.error.flatten())
+  const initializeState = async () => {
+    setFormStatus(prev => ({ ...prev, initializing: true }))
+    try {
+      initialState = await getInitialState(props.initialState)
+      setStateInternal(initialState)
+      setUndoRedoManager(createUndoRedoManager<State>(initialState))
+      
+      const validationResult = await revalidate()
+      if(!validationResult.success) {
+        setErrors(validationResult.error.flatten())
+      }
+    } finally {
+      setFormStatus(prev => ({ ...prev, initializing: false }))
     }
-  })
-  .finally(() => {
-    setFormStatus(prev => ({ ...prev, initializing: false }))
-  })
+  }
+  initializeState()
 
   const setState = async (update: Update<State>) => {
     const currentState = state();
@@ -185,6 +226,7 @@ export function Form<
       setFormStatus(prev => ({ ...prev, isSettingState: true }))
       const next = await getUpdatedValue(currentState as State, update);
       setStateInternal(next)
+      undoRedoManager()?.setState(next);
 
       const validationResult = await revalidate()
       if(!validationResult.success) {
@@ -205,7 +247,6 @@ export function Form<
     }
   }
 
-  const reset = () => setState(initialState)
 
   const _initialState = () => initialState
 
@@ -221,6 +262,31 @@ export function Form<
     }
   }
 
+  const undo = async (steps: number = 1) => {
+    const manager = undoRedoManager()
+    if (manager) {
+      const previousState = manager.undo(steps);
+      await setState(previousState);
+    }
+  }
+
+  const redo = async (steps: number = 1) => {
+    const manager = undoRedoManager()
+    if (manager) {
+      const nextState = manager.redo(steps);
+      await setState(nextState);
+    }
+  }
+
+  const canUndo = (steps: number = 1) => undoRedoManager()?.canUndo(steps) ?? false;
+  const canRedo = (steps: number = 1) => undoRedoManager()?.canRedo(steps) ?? false;
+
+  const reset = async () => {
+    const initialState = await getInitialState(props.initialState)
+    await setState(initialState);
+    undoRedoManager()?.setState(initialState);
+  }
+
   return (
     <formContext.Provider value={{
       initialState: _initialState,
@@ -232,7 +298,11 @@ export function Form<
       setFieldMetas,
       errors,
       reset,
-      submit
+      submit,
+      undo,
+      redo,
+      canUndo,
+      canRedo
     }}>
       <fieldStatusesContext.Provider value={{
         fieldStatuses,
