@@ -31,7 +31,7 @@ function set(obj: any, path: string, value: any): any {
 export type Update<T> = T | ((prev: T) => T) | ((prev: T) => Promise<T>)
 export type SyncUpdate<T> = T | ((prev: T) => T)
 
-export const getUpdatedValue = async <T,>(prev: T, update: Update<T>): Promise<T> => {
+export async function getUpdatedValue <T>(prev: T, update: Update<T>): Promise<T> {
   if (update instanceof Function) {
     const result = update(prev);
     return result instanceof Promise ? await result : result;
@@ -39,7 +39,7 @@ export const getUpdatedValue = async <T,>(prev: T, update: Update<T>): Promise<T
   return update;
 }
 
-export const getInitialState = async <T,>(init: Initializer<T>): Promise<T> => {
+export async function getInitialState <T>(init: Initializer<T>): Promise<T> {
   if (init instanceof Function) {
     const result = init();
     return result instanceof Promise ? await result : result;
@@ -60,7 +60,6 @@ export type FieldMetaState = {
 export type FieldStatus = {
   isSettingValue: boolean;
   isSettingMeta: boolean;
-  isSettingCustomErrors: false,
 }
 
 export const defaultFieldMetaState: FieldMetaState = {
@@ -77,13 +76,10 @@ export type FieldState<T> = {
   meta: FieldMetaState
   setMeta: (update: Update<FieldMetaState>) => Promise<void>,
   errors: string[]
-  customErrors: string[]
-  setCustomErrors:  (update: Update<string[]>) => Promise<void>
-  clearCustomErrors:  () => Promise<void>
   reset: () => Promise<void>
 }
 
-export type FormixErrors = {
+export type FormErrors = {
   fieldErrors: {
     [x: string]: string[] | undefined;
     [x: number]: string[] | undefined;
@@ -96,9 +92,8 @@ export type FormStatus = {
   initializing: boolean;
   submitting: boolean;
   validating: boolean;
-  isSettingState: boolean;
-  isSettingCustomErrors: boolean;
-  isSettingMeta: boolean;
+  settingState: boolean;
+  settingMeta: boolean;
 };
 
 export type FormContext<State = any> = {
@@ -107,16 +102,13 @@ export type FormContext<State = any> = {
   state: () => State
   setState: (update: Update<State>) => Promise<void>
 
-  meta: () => Record<string, FieldMetaState>
-  setMeta: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
+  fieldMetas: () => Record<string, FieldMetaState>
+  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
 
-  errors: () => FormixErrors,
+  errors: () => FormErrors,
 
-  customErrors: () => FormixErrors
-  setCustomErrors: (update: Update<FormixErrors>) => void
-  clearCustomErrors: () => void
-
-  reset: () => void
+  reset: () => Promise<void>
+  submit: () => Promise<void>
   formStatus: () => FormStatus
   fieldStatuses: () => Record<string, FieldStatus>
 }
@@ -139,18 +131,14 @@ export type FormProps<
   children: JSXElement
 }
 
-export const Form = <
+export function Form<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>
->(props: FormProps<Schema, State>) => {
+>(props: FormProps<Schema, State>) {
   const [state, setStateInternal] = createSignal<State | undefined>(undefined)
-  const [meta, setMetaInternal] = createSignal<Record<string, FieldMetaState>>({})
+  const [fieldMetas, setFieldMetasInternal] = createSignal<Record<string, FieldMetaState>>({})
 
-  const [errors, setErrors] = createSignal<FormixErrors>({
-    fieldErrors: {},
-    formErrors: []
-  })
-  const [customErrors, setCustomErrorsInternal] = createSignal<FormixErrors>({
+  const [errors, setErrors] = createSignal<FormErrors>({
     fieldErrors: {},
     formErrors: []
   })
@@ -159,9 +147,8 @@ export const Form = <
     initializing: false,
     submitting: false,
     validating: false,
-    isSettingState: false,
-    isSettingCustomErrors: false,
-    isSettingMeta: false,
+    settingState: false,
+    settingMeta: false,
   });
 
   const [fieldStatuses, setFieldStatuses] = createSignal<Record<string, FieldStatus>>({});
@@ -189,16 +176,6 @@ export const Form = <
     setFormStatus(prev => ({ ...prev, initializing: false }))
   })
 
-  const setCustomErrors = async (update: Update<FormixErrors>) => {
-    try {
-      setFormStatus(prev => ({ ...prev, isSettingCustomErrors: true }))
-      const next = await getUpdatedValue(customErrors(), update)
-      setCustomErrorsInternal(next)
-    } finally {
-      setFormStatus(prev => ({ ...prev, isSettingCustomErrors: false }))
-    }
-  }
-
   const setState = async (update: Update<State>) => {
     const currentState = state();
     if (currentState === undefined && update instanceof Function) {
@@ -218,11 +195,11 @@ export const Form = <
     }
   }
 
-  const setMeta = async (update: Update<Record<string, FieldMetaState>>) => {
+  const setFieldMetas = async (update: Update<Record<string, FieldMetaState>>) => {
     try {
       setFormStatus(prev => ({ ...prev, isSettingMeta: true }))
-      const next = await getUpdatedValue(meta(), update)
-      setMetaInternal(next)
+      const next = await getUpdatedValue(fieldMetas(), update)
+      setFieldMetasInternal(next)
     } finally {
       setFormStatus(prev => ({ ...prev, isSettingMeta: false }))
     }
@@ -230,14 +207,19 @@ export const Form = <
 
   const reset = () => setState(initialState)
 
-  const clearCustomErrors = () => {
-    setCustomErrors({
-      fieldErrors: {},
-      formErrors: []
-    })
-  }
-
   const _initialState = () => initialState
+
+  const submit = async () => {
+    const validationResult = await revalidate()
+    if(!validationResult.success) return
+
+    try {
+      setFormStatus(prev => ({ ...prev, submitting: true }))
+      await props.onSubmit(validationResult.data)
+    } finally {
+      setFormStatus(prev => ({ ...prev, submitting: false }))
+    }
+  }
 
   return (
     <formContext.Provider value={{
@@ -246,13 +228,11 @@ export const Form = <
       setState,
       formStatus,
       fieldStatuses,
-      meta,
-      setMeta,
+      fieldMetas,
+      setFieldMetas,
       errors,
-      customErrors,
-      setCustomErrors,
-      clearCustomErrors,
       reset,
+      submit
     }}>
       <fieldStatusesContext.Provider value={{
         fieldStatuses,
@@ -260,16 +240,7 @@ export const Form = <
       }}>
         <form onSubmit={async (e) => {
           e.preventDefault();
-
-          const validationResult = await revalidate()
-
-          if(!validationResult.success) return
-          try {
-            setFormStatus(prev => ({ ...prev, submitting: true }))
-            return await props.onSubmit(validationResult.data)
-          } finally {
-            setFormStatus(prev => ({ ...prev, submitting: false }))
-          }
+          await submit();
         }}>
           {props.children}
         </form>
@@ -279,14 +250,14 @@ export const Form = <
 }
 
 
-export const useField = <T,>(path: string): (() => FieldState<T>)  => {
+export function useField<T>(path: string): (() => FieldState<T>) {
   const form = useForm()
   const uf = useContext(fieldStatusesContext)!
 
   const getMeta = () => {
-    const meta = form.meta()[path] 
+    const meta = form.fieldMetas()[path] 
     if(!meta) {
-      form.setMeta((prev) => ({
+      form.setFieldMetas((prev) => ({
         ...prev,
         [path]: defaultFieldMetaState
       }))
@@ -302,7 +273,6 @@ export const useField = <T,>(path: string): (() => FieldState<T>)  => {
         ...prev[path] ?? {
           isSettingMeta: false, 
           isSettingValue: false,
-          isSettingCustomErrors: false
         },
         [key]: value
       }
@@ -325,7 +295,7 @@ export const useField = <T,>(path: string): (() => FieldState<T>)  => {
     try {
       setStatus("isSettingMeta", true)
       const next = await getUpdatedValue(getMeta(), update)
-      form.setMeta(prev => ({
+      form.setFieldMetas(prev => ({
         ...prev,
         [path]: next
       }))
@@ -334,24 +304,7 @@ export const useField = <T,>(path: string): (() => FieldState<T>)  => {
     }
   }
 
-  const setCustomErrors = async (update: Update<string[]>) => {
-    try {
-      setStatus("isSettingCustomErrors", true)
-      const next = await getUpdatedValue(form.errors().fieldErrors[path] ?? [], update)
-      form.setCustomErrors(prev => ({
-        ...prev,
-        fieldErrors: {
-          ...prev.fieldErrors,
-          [path]: next
-        }
-      }))
-    } finally {
-      setStatus("isSettingCustomErrors", false)
-    }
-  }
-  
   const reset = () => setValue(get(form.initialState(), path))
-  const clearCustomErrors = () => setCustomErrors([])
 
   return () => ({
       value: get(form.state(), path),
@@ -359,9 +312,6 @@ export const useField = <T,>(path: string): (() => FieldState<T>)  => {
       meta: getMeta(),
       setMeta,
       errors: form.errors().fieldErrors[path] ?? [],
-      customErrors: form.customErrors().fieldErrors[path] ?? [],
-      setCustomErrors,
-      clearCustomErrors,
       reset
   })
 }
@@ -376,7 +326,7 @@ export type ArrayFieldState<T> = FieldState<T[]> & {
   swap: (indexA: number, indexB: number) => Promise<void>
 }
 
-export const useArrayField = <T,>(path: string): (() => ArrayFieldState<T>) => {
+export function useArrayField<T>(path: string): (() => ArrayFieldState<T>) {
   const field = useField<T[]>(path);
 
   return () => {
