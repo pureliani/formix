@@ -1,6 +1,45 @@
 import { z } from "zod"
 import { createContext, createSignal, useContext, type JSXElement } from "solid-js"
 
+export function isEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== typeof b) return false;
+
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+
+  if (a instanceof RegExp && b instanceof RegExp) {
+    return a.toString() === b.toString();
+  }
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!isEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  if (Object.prototype.toString.call(a) === '[object Object]' &&
+      Object.prototype.toString.call(b) === '[object Object]') {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+
+    if (keysA.length !== keysB.length) return false;
+
+    for (const key of keysA) {
+      if (!keysB.includes(key)) return false;
+      if (!isEqual(a[key], b[key])) return false;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
 type UndoRedoState<T> = {
   history: T[];
   currentIndex: number;
@@ -88,16 +127,16 @@ export async function getInitialState <T>(init: Initializer<T>): Promise<T> {
 export type Initializer<T> = T | (() => T) | (() => Promise<T>) 
 
 export type FieldMetaState = {
-  touched: boolean
-  dirty: boolean
-  loading: boolean
-  disabled: boolean
-  readOnly: boolean
+  readonly touched: boolean
+  readonly dirty: boolean
+  readonly loading: boolean
+  readonly disabled: boolean
+  readonly readOnly: boolean
 }
 
 export type FieldStatus = {
-  isSettingValue: boolean;
-  isSettingMeta: boolean;
+  readonly isSettingValue: boolean;
+  readonly isSettingMeta: boolean;
 }
 
 export const defaultFieldMetaState: FieldMetaState = {
@@ -109,46 +148,48 @@ export const defaultFieldMetaState: FieldMetaState = {
 }
 
 export type FieldState<T> = { 
-  value: T,
-  setValue: (update: Update<T>) => Promise<void>,
-  meta: FieldMetaState
-  setMeta: (update: Update<FieldMetaState>) => Promise<void>,
-  errors: string[]
-  reset: () => Promise<void>
+  readonly value: T,
+  readonly setValue: (update: Update<T>) => Promise<void>,
+  readonly meta: FieldMetaState
+  readonly setMeta: (update: Update<FieldMetaState>) => Promise<void>,
+  readonly errors: string[]
+  readonly reset: () => Promise<void>
+  readonly wasModified: () => boolean
 }
 
 export type FormErrors = {
-  fieldErrors: {
-    [x: string]: string[] | undefined;
-    [x: number]: string[] | undefined;
-    [x: symbol]: string[] | undefined;
+  readonly fieldErrors: {
+    readonly [x: string]: string[] | undefined;
+    readonly [x: number]: string[] | undefined;
+    readonly [x: symbol]: string[] | undefined;
   }
-  formErrors: string[]
+  readonly formErrors: string[]
 }
 
 export type FormStatus = {
-  initializing: boolean;
-  submitting: boolean;
-  validating: boolean;
-  settingState: boolean;
-  settingMeta: boolean;
+  readonly initializing: boolean;
+  readonly submitting: boolean;
+  readonly validating: boolean;
+  readonly settingState: boolean;
+  readonly settingMeta: boolean;
 };
 
 export type FormContext<State = any> = {
   readonly initialState: () => Readonly<State | null>;
   readonly state: () => Readonly<State | null>;
-  setState: (update: Update<State>) => Promise<void>;
+  readonly setState: (update: Update<State>) => Promise<void>;
   readonly fieldMetas: () => Readonly<Record<string, FieldMetaState>>;
-  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>;
+  readonly setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>;
   readonly errors: () => Readonly<FormErrors>;
-  reset: () => Promise<void>;
-  submit: () => Promise<void>;
+  readonly reset: () => Promise<void>;
+  readonly submit: () => Promise<void>;
   readonly formStatus: () => Readonly<FormStatus>;
   readonly fieldStatuses: () => Readonly<Record<string, FieldStatus>>;
-  undo: (steps?: number) => Promise<void>;
-  redo: (steps?: number) => Promise<void>;
+  readonly undo: (steps?: number) => Promise<void>;
+  readonly redo: (steps?: number) => Promise<void>;
   readonly canUndo: (steps?: number) => boolean;
   readonly canRedo: (steps?: number) => boolean;
+  readonly wasModified: () => boolean
 };
 
 type FieldStatusesContext = {
@@ -285,8 +326,12 @@ export function Form<
   const reset = async () => {
     const initialState = await getInitialState(props.initialState)
     await setState(initialState);
-    undoRedoManager()?.setState(initialState);
   }
+
+  const wasModified = () => {
+    const currentState = state();
+    return currentState !== null && !isEqual(currentState, initialState);
+  };
 
   return (
     <formContext.Provider value={{
@@ -303,7 +348,8 @@ export function Form<
       undo,
       redo,
       canUndo,
-      canRedo
+      canRedo,
+      wasModified
     }}>
       <fieldStatusesContext.Provider value={{
         fieldStatuses,
@@ -336,6 +382,12 @@ export function useField<T>(path: string): (() => FieldState<T>) {
     } 
     return meta
   } 
+
+  const wasModified = () => {
+    const currentState = get(form.state(), path);
+    const initialState = get(form.initialState(), path);
+    return currentState !== null && !isEqual(currentState, initialState);
+  };
 
   const setStatus = (key: keyof FieldStatus, value: boolean) => {
     uf.setFieldStatuses((prev) => ({
@@ -383,7 +435,8 @@ export function useField<T>(path: string): (() => FieldState<T>) {
       meta: getMeta(),
       setMeta,
       errors: form.errors().fieldErrors[path] ?? [],
-      reset
+      reset,
+      wasModified
   })
 }
 
