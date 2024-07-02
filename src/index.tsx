@@ -135,21 +135,21 @@ export type FormStatus = {
 };
 
 export type FormContext<State = any> = {
-  initialState: () => State | null
-  state: () => State
-  setState: (update: Update<State>) => Promise<void>
-  fieldMetas: () => Record<string, FieldMetaState>
-  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
-  errors: () => FormErrors,
-  reset: () => Promise<void>
-  submit: () => Promise<void>
-  formStatus: () => FormStatus
-  fieldStatuses: () => Record<string, FieldStatus>
-  undo: (steps?: number) => Promise<void>
-  redo: (steps?: number) => Promise<void>
-  canUndo: (steps?: number) => boolean
-  canRedo: (steps?: number) => boolean
-}
+  readonly initialState: () => Readonly<State | null>;
+  readonly state: () => Readonly<State | null>;
+  setState: (update: Update<State>) => Promise<void>;
+  readonly fieldMetas: () => Readonly<Record<string, FieldMetaState>>;
+  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>;
+  readonly errors: () => Readonly<FormErrors>;
+  reset: () => Promise<void>;
+  submit: () => Promise<void>;
+  readonly formStatus: () => Readonly<FormStatus>;
+  readonly fieldStatuses: () => Readonly<Record<string, FieldStatus>>;
+  undo: (steps?: number) => Promise<void>;
+  redo: (steps?: number) => Promise<void>;
+  readonly canUndo: (steps?: number) => boolean;
+  readonly canRedo: (steps?: number) => boolean;
+};
 
 type FieldStatusesContext = {
   fieldStatuses: () => Record<string, FieldStatus>
@@ -173,7 +173,7 @@ export function Form<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>
 >(props: FormProps<Schema, State>) {
-  const [state, setStateInternal] = createSignal<State | undefined>(undefined)
+  const [state, setStateInternal] = createSignal<State | null>(null)
   const [fieldMetas, setFieldMetasInternal] = createSignal<Record<string, FieldMetaState>>({})
   const [undoRedoManager, setUndoRedoManager] = createSignal<ReturnType<typeof createUndoRedoManager<State>> | undefined>(undefined)
 
