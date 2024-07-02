@@ -441,13 +441,13 @@ export function useField<T>(path: string): (() => FieldState<T>) {
 }
 
 export type ArrayFieldState<T> = FieldState<T[]> & {
-  push: (item: T) => Promise<void>,
-  remove: (index: number) => Promise<void>,
-  move: (from: number, to: number) => Promise<void>,
-  insert: (index: number, item: T) => Promise<void>,
-  replace: (index: number, item: T) => Promise<void>,
-  clear: () => Promise<void>,
-  swap: (indexA: number, indexB: number) => Promise<void>
+ readonly push: (item: T) => Promise<void>,
+ readonly remove: (index: number) => Promise<void>,
+ readonly move: (from: number, to: number) => Promise<void>,
+ readonly insert: (index: number, item: T) => Promise<void>,
+ readonly replace: (index: number, item: T) => Promise<void>,
+ readonly clear: () => Promise<void>,
+ readonly swap: (indexA: number, indexB: number) => Promise<void>
 }
 
 export function useArrayField<T>(path: string): (() => ArrayFieldState<T>) {
