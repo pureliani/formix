@@ -135,7 +135,7 @@ export type FormStatus = {
 };
 
 export type FormContext<State = any> = {
-  initialState: () => State
+  initialState: () => State | null
   state: () => State
   setState: (update: Update<State>) => Promise<void>
   fieldMetas: () => Record<string, FieldMetaState>
@@ -199,14 +199,15 @@ export function Form<
     return validationResult
   }
 
-  let initialState: State
+  let initialState: State | null = null
   const initializeState = async () => {
     setFormStatus(prev => ({ ...prev, initializing: true }))
     try {
-      initialState = await getInitialState(props.initialState)
-      setStateInternal(initialState)
-      setUndoRedoManager(createUndoRedoManager<State>(initialState))
-      
+      const result = await getInitialState(props.initialState)
+      initialState = result
+      setStateInternal(result)
+      setUndoRedoManager(createUndoRedoManager<State>(result))
+
       const validationResult = await revalidate()
       if(!validationResult.success) {
         setErrors(validationResult.error.flatten())
