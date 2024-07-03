@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { createContext, createSignal, useContext, type JSXElement } from "solid-js"
+import { createContext, createMemo, createSignal, useContext, type JSXElement } from "solid-js"
 import { createUndoRedoManager, get, getInitialValue, getUpdatedValue, isEqual, set } from "./helpers"
 
 export type Update<T, R = T> = R | ((prev: T) => R) | ((prev: T) => Promise<R>)
@@ -12,6 +12,7 @@ export type FieldMetaState = Readonly<{
   loading: boolean
   disabled: boolean
   readOnly: boolean
+  show: boolean
 }>
 
 export type FieldStatus = Readonly<{
@@ -19,13 +20,13 @@ export type FieldStatus = Readonly<{
   isSettingMeta: boolean;
 }>
 
-export type FieldState<T> = Readonly<{ 
-  value: T,
+export type FieldContext<T> = Readonly<{ 
+  value: () => T,
   setValue: (update: Update<T>) => Promise<void>,
-  meta: FieldMetaState
+  meta: () => FieldMetaState
   setMeta: (update: Update<FieldMetaState>) => Promise<void>,
-  errors: string[]
-  status: FieldStatus
+  errors: () => string[]
+  status: () => FieldStatus
   reset: () => Promise<void>
   wasModified: () => boolean
 }>
@@ -236,28 +237,33 @@ export function Form<
 }
 
 
-export function useField<T>(path: string): (() => FieldState<T>) {
+export function useField<T>(path: string): FieldContext<T> {
   const form = useForm()
   const statuses = useContext(fieldStatusesContext)!
 
-  const getStatus = () => statuses.fieldStatuses()[path] ?? {
+  const getStatus = createMemo(() => statuses.fieldStatuses()[path] ?? {
     isSettingMeta: false,
     isSettingValue: false
-  }
+  });
 
-  const getMeta = () =>  form.fieldMetas()[path] ?? {
+  const getMeta = createMemo(() => form.fieldMetas()[path] ?? {
     dirty: false,
     disabled: false,
     loading: false,
     readOnly: false,
-    touched: false
-  }
+    touched: false,
+    show: true
+  });
 
-  const wasModified = () => {
+  const value = createMemo(() => get(form.state(), path) as T);
+
+  const errors = createMemo(() => form.errors().fieldErrors[path] ?? []);
+
+  const wasModified = createMemo(() => {
     const currentState = get(form.state(), path);
     const initialState = get(form.initialState(), path);
     return currentState !== null && !isEqual(currentState, initialState);
-  };
+  });
 
   const setStatus = (key: keyof FieldStatus, value: boolean) => {
     statuses.setFieldStatuses((prev) => ({
@@ -303,118 +309,114 @@ export function useField<T>(path: string): (() => FieldState<T>) {
     await setValue(initialValue)
   }
 
-  return () => ({
-      value: get(form.state(), path) as T,
+  return {
+      value,
       setValue,
-      meta: getMeta(),
+      meta: getMeta,
       setMeta,
-      errors: form.errors().fieldErrors[path] ?? [],
-      status: getStatus(),
+      errors,
+      status: getStatus,
       reset,
       wasModified
-  })
+  }
 }
 
-export type ArrayFieldState<T> = FieldState<T[]> & Readonly<{
+export type ArrayFieldState<T> = FieldContext<T[]> & Readonly<{
  push: (item: Initializer<T>) => Promise<void>,
  remove: (index: Initializer<number>) => Promise<void>,
  move: (from: Initializer<number>, to: Initializer<number>) => Promise<void>,
  insert: (index: Initializer<number>, item: Initializer<T>) => Promise<void>,
  replace: (index: Initializer<number>, item: Initializer<T>) => Promise<void>,
- clear: () => Promise<void>,
+ empty: () => Promise<void>,
  swap: (indexA: Initializer<number>, indexB: Initializer<number>) => Promise<void>
 }>
 
-export function useArrayField<T>(path: string): (() => ArrayFieldState<T>) {
-  const field = useField<T[]>(path);
+export function useArrayField<T>(path: string): ArrayFieldState<T> {
+  const baseField = useField<T[]>(path);
 
-  return () => {
-    const baseField = field();
-
-    const push = async (item: Initializer<T>) => {
-      await baseField.setValue(async prev => [
-        ...prev, 
-        await getInitialValue(item)
-      ]);
-    };
-
-    const remove = async (index: Initializer<number>) => {
-      await baseField.setValue(async prev => {
-        const _index = await getInitialValue(index)
-        return prev.filter((_, i) => i !== _index)
-      });
-    };
-
-    const move = async (from: Initializer<number>, to: Initializer<number>) => {
-      await baseField.setValue(async prev => {
-        const [_from, _to] = await Promise.all([
-          getInitialValue(from), 
-          getInitialValue(to)
-        ] as const)
-        
-        const newArray = [...prev];
-        const [removed] = newArray.splice(_from, 1);
-        newArray.splice(_to, 0, removed!);
-        return newArray;
-      });
-    };
-
-    const insert = async (index: Initializer<number>, item: Initializer<T>) => {
-      await baseField.setValue(async prev => {
-        const [_index, _item] = await Promise.all([
-          getInitialValue(index), 
-          getInitialValue(item)
-        ] as const)
-
-        const newArray = [...prev];
-        newArray.splice(_index, 0, _item);
-        return newArray;
-      });
-    };
-
-    const replace = async (index: Initializer<number>, item: Initializer<T>) => {
-      await baseField.setValue(async prev => {
-        const [_index, _item] = await Promise.all([
-          getInitialValue(index), 
-          getInitialValue(item)
-        ] as const)
-        
-        const newArray = [...prev];
-        newArray[_index] = _item;
-        return newArray;
-      });
-    };
-
-    const clear = async () => {
-      await baseField.setValue([]);
-    };
-
-    const swap = async (indexA: Initializer<number>, indexB: Initializer<number>) => {
-      await baseField.setValue(async prev => {
-        const [_indexA, _indexB] = await Promise.all([
-          getInitialValue(indexA), 
-          getInitialValue(indexB)
-        ] as const)
-
-        const newArray = [...prev];
-        const temp = newArray[_indexA]!;
-        newArray[_indexA] = newArray[_indexB]!;
-        newArray[_indexB] = temp;
-        return newArray;
-      });
-    };
-
-    return {
-      ...baseField,
-      push,
-      remove,
-      move,
-      insert,
-      replace,
-      clear,
-      swap
-    };
+  const push = async (item: Initializer<T>) => {
+    await baseField.setValue(async prev => [
+      ...prev, 
+      await getInitialValue(item)
+    ]);
   };
+
+  const remove = async (index: Initializer<number>) => {
+    await baseField.setValue(async prev => {
+      const _index = await getInitialValue(index)
+      return prev.filter((_, i) => i !== _index)
+    });
+  };
+
+  const move = async (from: Initializer<number>, to: Initializer<number>) => {
+    await baseField.setValue(async prev => {
+      const [_from, _to] = await Promise.all([
+        getInitialValue(from), 
+        getInitialValue(to)
+      ] as const)
+      
+      const newArray = [...prev];
+      const [removed] = newArray.splice(_from, 1);
+      newArray.splice(_to, 0, removed!);
+      return newArray;
+    });
+  };
+
+  const insert = async (index: Initializer<number>, item: Initializer<T>) => {
+    await baseField.setValue(async prev => {
+      const [_index, _item] = await Promise.all([
+        getInitialValue(index), 
+        getInitialValue(item)
+      ] as const)
+
+      const newArray = [...prev];
+      newArray.splice(_index, 0, _item);
+      return newArray;
+    });
+  };
+
+  const replace = async (index: Initializer<number>, item: Initializer<T>) => {
+    await baseField.setValue(async prev => {
+      const [_index, _item] = await Promise.all([
+        getInitialValue(index), 
+        getInitialValue(item)
+      ] as const)
+      
+      const newArray = [...prev];
+      newArray[_index] = _item;
+      return newArray;
+    });
+  };
+
+  const empty = async () => {
+    await baseField.setValue([]);
+  };
+
+  const swap = async (indexA: Initializer<number>, indexB: Initializer<number>) => {
+    await baseField.setValue(async prev => {
+      const [_indexA, _indexB] = await Promise.all([
+        getInitialValue(indexA), 
+        getInitialValue(indexB)
+      ] as const)
+
+      const newArray = [...prev];
+      const temp = newArray[_indexA]!;
+      newArray[_indexA] = newArray[_indexB]!;
+      newArray[_indexB] = temp;
+      return newArray;
+    });
+  };
+
+  return {
+    ...baseField,
+    push,
+    remove,
+    move,
+    insert,
+    replace,
+    empty,
+    swap
+  }
 };
 
 export function useForm<T = any,>(): FormContext<T> {
