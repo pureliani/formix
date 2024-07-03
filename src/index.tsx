@@ -105,10 +105,11 @@ function set(obj: any, path: string, value: any): any {
   return obj;
 }
 
-export type Update<T> = T | ((prev: T) => T) | ((prev: T) => Promise<T>)
-export type SyncUpdate<T> = T | ((prev: T) => T)
+export type Update<T, R = T> = R | ((prev: T) => R) | ((prev: T) => Promise<R>)
+export type SyncUpdate<T, R = T> = R | ((prev: T) => R)
+export type Initializer<T> = T | (() => T) | (() => Promise<T>) 
 
-export async function getUpdatedValue <T>(prev: T, update: Update<T>): Promise<T> {
+export async function getUpdatedValue <T, R>(prev: T, update: Update<T, R>): Promise<R> {
   if (update instanceof Function) {
     const result = update(prev);
     return result instanceof Promise ? await result : result;
@@ -116,7 +117,7 @@ export async function getUpdatedValue <T>(prev: T, update: Update<T>): Promise<T
   return update;
 }
 
-export async function getInitialState <T>(init: Initializer<T>): Promise<T> {
+export async function getInitialValue <T>(init: Initializer<T>): Promise<T> {
   if (init instanceof Function) {
     const result = init();
     return result instanceof Promise ? await result : result;
@@ -124,78 +125,69 @@ export async function getInitialState <T>(init: Initializer<T>): Promise<T> {
   return init;
 }
 
-export type Initializer<T> = T | (() => T) | (() => Promise<T>) 
+export type FieldMetaState = Readonly<{
+  touched: boolean
+  dirty: boolean
+  loading: boolean
+  disabled: boolean
+  readOnly: boolean
+}>
 
-export type FieldMetaState = {
-  readonly touched: boolean
-  readonly dirty: boolean
-  readonly loading: boolean
-  readonly disabled: boolean
-  readonly readOnly: boolean
-}
+export type FieldStatus = Readonly<{
+  isSettingValue: boolean;
+  isSettingMeta: boolean;
+}>
 
-export type FieldStatus = {
-  readonly isSettingValue: boolean;
-  readonly isSettingMeta: boolean;
-}
+export type FieldState<T> = Readonly<{ 
+  value: T,
+  setValue: (update: Update<T>) => Promise<void>,
+  meta: FieldMetaState
+  setMeta: (update: Update<FieldMetaState>) => Promise<void>,
+  errors: string[]
+  status: FieldStatus
+  reset: () => Promise<void>
+  wasModified: () => boolean
+}>
 
-export const defaultFieldMetaState: FieldMetaState = {
-  dirty: false,
-  loading: false,
-  touched: false,
-  disabled: false,
-  readOnly: false,
-}
+export type FormErrors = Readonly<{
+  fieldErrors: Readonly<{
+    [x: string]: string[] | undefined;
+    [x: number]: string[] | undefined;
+    [x: symbol]: string[] | undefined;
+  }>
+  formErrors: string[]
+}>
 
-export type FieldState<T> = { 
-  readonly value: T,
-  readonly setValue: (update: Update<T>) => Promise<void>,
-  readonly meta: FieldMetaState
-  readonly setMeta: (update: Update<FieldMetaState>) => Promise<void>,
-  readonly errors: string[]
-  readonly reset: () => Promise<void>
-  readonly wasModified: () => boolean
-}
+export type FormStatus = Readonly<{
+  initializing: boolean;
+  submitting: boolean;
+  validating: boolean;
+  settingState: boolean;
+  settingMeta: boolean;
+}>
 
-export type FormErrors = {
-  readonly fieldErrors: {
-    readonly [x: string]: string[] | undefined;
-    readonly [x: number]: string[] | undefined;
-    readonly [x: symbol]: string[] | undefined;
-  }
-  readonly formErrors: string[]
-}
+export type FormContext<State = any> = Readonly<{
+  initialState: () => Readonly<State | null>
+  state: () => Readonly<State | null>
+  setState: (update: Update<State>) => Promise<void>
+  fieldMetas: () => Readonly<Record<string, FieldMetaState>>
+  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
+  errors: () => Readonly<FormErrors>
+  reset: () => Promise<void>
+  submit: () => Promise<void>
+  formStatus: () => Readonly<FormStatus>
+  fieldStatuses: () => Readonly<Record<string, FieldStatus>>
+  undo: (steps?: number) => Promise<void>
+  redo: (steps?: number) => Promise<void>
+  canUndo: (steps?: number) => boolean
+  canRedo: (steps?: number) => boolean
+  wasModified: () => boolean
+}>
 
-export type FormStatus = {
-  readonly initializing: boolean;
-  readonly submitting: boolean;
-  readonly validating: boolean;
-  readonly settingState: boolean;
-  readonly settingMeta: boolean;
-};
-
-export type FormContext<State = any> = {
-  readonly initialState: () => Readonly<State | null>;
-  readonly state: () => Readonly<State | null>;
-  readonly setState: (update: Update<State>) => Promise<void>;
-  readonly fieldMetas: () => Readonly<Record<string, FieldMetaState>>;
-  readonly setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>;
-  readonly errors: () => Readonly<FormErrors>;
-  readonly reset: () => Promise<void>;
-  readonly submit: () => Promise<void>;
-  readonly formStatus: () => Readonly<FormStatus>;
-  readonly fieldStatuses: () => Readonly<Record<string, FieldStatus>>;
-  readonly undo: (steps?: number) => Promise<void>;
-  readonly redo: (steps?: number) => Promise<void>;
-  readonly canUndo: (steps?: number) => boolean;
-  readonly canRedo: (steps?: number) => boolean;
-  readonly wasModified: () => boolean
-};
-
-type FieldStatusesContext = {
+type FieldStatusesContext = Readonly<{
   fieldStatuses: () => Record<string, FieldStatus>
-  setFieldStatuses: (update: SyncUpdate<Record<string, FieldStatus>>) => void
-}
+  setFieldStatuses: (update: Update<Record<string, FieldStatus>>) => void
+}>
 
 const formContext = createContext<FormContext>()
 const fieldStatusesContext = createContext<FieldStatusesContext>(undefined)
@@ -244,7 +236,7 @@ export function Form<
   const initializeState = async () => {
     setFormStatus(prev => ({ ...prev, initializing: true }))
     try {
-      const result = await getInitialState(props.initialState)
+      const result = await getInitialValue(props.initialState)
       initialState = result
       setStateInternal(result)
       setUndoRedoManager(createUndoRedoManager<State>(result))
@@ -259,14 +251,10 @@ export function Form<
   }
   initializeState()
 
-  const setState = async (update: Update<State>) => {
-    const currentState = state();
-    if (currentState === undefined && update instanceof Function) {
-      throw new Error("@gapu/formix: Cannot call 'setState' with an update callback if the state is not initialized yet");
-    }
+  const setState = async (update: Update<State | null, State>) => {
     try {
       setFormStatus(prev => ({ ...prev, isSettingState: true }))
-      const next = await getUpdatedValue(currentState as State, update);
+      const next = await getUpdatedValue(state(), update);
       setStateInternal(next)
       undoRedoManager()?.setState(next);
 
@@ -324,7 +312,7 @@ export function Form<
   const canRedo = (steps: number = 1) => undoRedoManager()?.canRedo(steps) ?? false;
 
   const reset = async () => {
-    const initialState = await getInitialState(props.initialState)
+    const initialState = await getInitialValue(props.initialState)
     await setState(initialState);
   }
 
@@ -369,19 +357,20 @@ export function Form<
 
 export function useField<T>(path: string): (() => FieldState<T>) {
   const form = useForm()
-  const uf = useContext(fieldStatusesContext)!
+  const statuses = useContext(fieldStatusesContext)!
 
-  const getMeta = () => {
-    const meta = form.fieldMetas()[path] 
-    if(!meta) {
-      form.setFieldMetas((prev) => ({
-        ...prev,
-        [path]: defaultFieldMetaState
-      }))
-      return defaultFieldMetaState
-    } 
-    return meta
-  } 
+  const getStatus = () => statuses.fieldStatuses()[path] ?? {
+    isSettingMeta: false,
+    isSettingValue: false
+  }
+
+  const getMeta = () =>  form.fieldMetas()[path] ?? {
+    dirty: false,
+    disabled: false,
+    loading: false,
+    readOnly: false,
+    touched: false
+  }
 
   const wasModified = () => {
     const currentState = get(form.state(), path);
@@ -390,7 +379,7 @@ export function useField<T>(path: string): (() => FieldState<T>) {
   };
 
   const setStatus = (key: keyof FieldStatus, value: boolean) => {
-    uf.setFieldStatuses((prev) => ({
+    statuses.setFieldStatuses((prev) => ({
       ...prev,
       [path]: {
         ...prev[path] ?? {
@@ -435,20 +424,21 @@ export function useField<T>(path: string): (() => FieldState<T>) {
       meta: getMeta(),
       setMeta,
       errors: form.errors().fieldErrors[path] ?? [],
+      status: getStatus(),
       reset,
       wasModified
   })
 }
 
-export type ArrayFieldState<T> = FieldState<T[]> & {
- readonly push: (item: T) => Promise<void>,
- readonly remove: (index: number) => Promise<void>,
- readonly move: (from: number, to: number) => Promise<void>,
- readonly insert: (index: number, item: T) => Promise<void>,
- readonly replace: (index: number, item: T) => Promise<void>,
- readonly clear: () => Promise<void>,
- readonly swap: (indexA: number, indexB: number) => Promise<void>
-}
+export type ArrayFieldState<T> = FieldState<T[]> & Readonly<{
+ push: (item: Initializer<T>) => Promise<void>,
+ remove: (index: Initializer<number>) => Promise<void>,
+ move: (from: Initializer<number>, to: Initializer<number>) => Promise<void>,
+ insert: (index: Initializer<number>, item: Initializer<T>) => Promise<void>,
+ replace: (index: Initializer<number>, item: Initializer<T>) => Promise<void>,
+ clear: () => Promise<void>,
+ swap: (indexA: Initializer<number>, indexB: Initializer<number>) => Promise<void>
+}>
 
 export function useArrayField<T>(path: string): (() => ArrayFieldState<T>) {
   const field = useField<T[]>(path);
@@ -456,35 +446,56 @@ export function useArrayField<T>(path: string): (() => ArrayFieldState<T>) {
   return () => {
     const baseField = field();
 
-    const push = async (item: T) => {
-      await baseField.setValue(prev => [...prev, item]);
+    const push = async (item: Initializer<T>) => {
+      await baseField.setValue(async prev => [
+        ...prev, 
+        await getInitialValue(item)
+      ]);
     };
 
-    const remove = async (index: number) => {
-      await baseField.setValue(prev => prev.filter((_, i) => i !== index));
+    const remove = async (index: Initializer<number>) => {
+      await baseField.setValue(async prev => {
+        const _index = await getInitialValue(index)
+        return prev.filter((_, i) => i !== _index)
+      });
     };
 
-    const move = async (from: number, to: number) => {
-      await baseField.setValue(prev => {
+    const move = async (from: Initializer<number>, to: Initializer<number>) => {
+      await baseField.setValue(async prev => {
+        const [_from, _to] = await Promise.all([
+          getInitialValue(from), 
+          getInitialValue(to)
+        ] as const)
+        
         const newArray = [...prev];
-        const [removed] = newArray.splice(from, 1);
-        newArray.splice(to, 0, removed!);
+        const [removed] = newArray.splice(_from, 1);
+        newArray.splice(_to, 0, removed!);
         return newArray;
       });
     };
 
-    const insert = async (index: number, item: T) => {
-      await baseField.setValue(prev => {
+    const insert = async (index: Initializer<number>, item: Initializer<T>) => {
+      await baseField.setValue(async prev => {
+        const [_index, _item] = await Promise.all([
+          getInitialValue(index), 
+          getInitialValue(item)
+        ] as const)
+
         const newArray = [...prev];
-        newArray.splice(index, 0, item);
+        newArray.splice(_index, 0, _item);
         return newArray;
       });
     };
 
-    const replace = async (index: number, item: T) => {
-      await baseField.setValue(prev => {
+    const replace = async (index: Initializer<number>, item: Initializer<T>) => {
+      await baseField.setValue(async prev => {
+        const [_index, _item] = await Promise.all([
+          getInitialValue(index), 
+          getInitialValue(item)
+        ] as const)
+        
         const newArray = [...prev];
-        newArray[index] = item;
+        newArray[_index] = _item;
         return newArray;
       });
     };
@@ -493,12 +504,17 @@ export function useArrayField<T>(path: string): (() => ArrayFieldState<T>) {
       await baseField.setValue([]);
     };
 
-    const swap = async (indexA: number, indexB: number) => {
-      await baseField.setValue(prev => {
+    const swap = async (indexA: Initializer<number>, indexB: Initializer<number>) => {
+      await baseField.setValue(async prev => {
+        const [_indexA, _indexB] = await Promise.all([
+          getInitialValue(indexA), 
+          getInitialValue(indexB)
+        ] as const)
+
         const newArray = [...prev];
-        const temp = newArray[indexA]!;
-        newArray[indexA] = newArray[indexB]!;
-        newArray[indexB] = temp;
+        const temp = newArray[_indexA]!;
+        newArray[_indexA] = newArray[_indexB]!;
+        newArray[_indexB] = temp;
         return newArray;
       });
     };
