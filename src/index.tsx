@@ -79,16 +79,17 @@ export type FormContext<State = any> = Readonly<{
 
 const formContext = createContext<FormContext>()
 
-export type FormProps<State> = FormContext<State> & {
+export type FormProps<State> = {
+  context: FormContext<State>
   children: JSXElement
 }
 
 export function Form<State>(props: FormProps<State>) {
   return (
-    <formContext.Provider value={props}>
+    <formContext.Provider value={props.context}>
       <form onSubmit={async (e) => {
         e.preventDefault();
-        await props.submit();
+        await props.context.submit();
       }}>
         {props.children}
       </form>
