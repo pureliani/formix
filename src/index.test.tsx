@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, screen } from '@solidjs/testing-library';
-import { createForm, Form, defaultFieldMetaState } from '.';
+import { createForm, Form, defaultFieldMetaState, type FormixError } from '.';
 import { z } from 'zod';
 
 describe('createForm', () => {
@@ -40,10 +40,16 @@ describe('createForm', () => {
 
   it('should validate the form state', async () => {
     await form.setState({ name: 'Jo', age: 17 });
-    expect(form.errors().fieldErrors).toEqual({
-      name: ['String must contain at least 3 character(s)'],
-      age: ['Number must be greater than or equal to 18'],
-    });
+    expect(form.errors()).toEqual([
+      {
+        path: "name",
+        message: "String must contain at least 3 character(s)",
+      },
+      {
+        path: "age",
+        message: "Number must be greater than or equal to 18",
+      }
+    ] satisfies FormixError[]);
   });
 
   it('should call onSubmit when form is valid', async () => {
@@ -203,7 +209,10 @@ describe('createForm', () => {
       onSubmit: vi.fn(),
     });
     await form.setState({ password: 'pass123', confirmPassword: 'pass456' });
-    expect(form.errors().formErrors).toEqual(["Passwords don't match"]);
+    expect(form.errors()).toEqual([{
+      path: "",
+      message: "Passwords don't match"
+    }] satisfies FormixError[]);
   });
 
   it('should handle custom validation', async () => {
@@ -224,7 +233,10 @@ describe('createForm', () => {
     await customForm.setFieldValue('username', 'taken');
     await customForm.submit();
 
-    expect(customForm.errors().fieldErrors.username).toEqual(['Username is already taken']);
+    expect(customForm.errors()).toEqual([{
+      path: "username",
+      message: "Username is already taken"
+    }] satisfies FormixError[]);
   });
 });
 
