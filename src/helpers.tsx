@@ -1,4 +1,5 @@
-import type { Initializer, Update } from ".";
+import type { ZodIssue } from "zod";
+import type { FormixError, Initializer, Update } from ".";
 
 export function isEqual(a: any, b: any): boolean {
   if (a === b) return true;
@@ -149,4 +150,11 @@ export async function getInitialValue<T>(init: Initializer<T>): Promise<T> {
     return result instanceof Promise ? await result : result;
   }
   return init;
+}
+
+export const formatZodIssues = (errors: ZodIssue[]): FormixError[] => {
+  return errors.map(e => ({
+    path: e.path.join("."),
+    message: e.message
+  }))
 }

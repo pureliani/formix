@@ -1,6 +1,22 @@
 import { z } from "zod"
-import { createContext, createMemo, createSignal, useContext, type JSXElement } from "solid-js"
-import { createUndoRedoManager, get, getInitialValue, getUpdatedValue, isEqual, set } from "./helpers"
+
+import {
+  createContext,
+  createMemo,
+  createSignal,
+  useContext,
+  type JSXElement
+} from "solid-js"
+
+import {
+  createUndoRedoManager,
+  formatZodIssues,
+  get,
+  getInitialValue,
+  getUpdatedValue,
+  isEqual,
+  set
+} from "./helpers"
 
 export type Update<T, R = T> = R | ((prev: T) => R) | ((prev: T) => Promise<R>)
 export type SyncUpdate<T, R = T> = R | ((prev: T) => R)
@@ -110,10 +126,6 @@ export function createForm<
   const [state, setStateInternal] = createSignal<State | null>(null)
   const [fieldMetas, setFieldMetasInternal] = createSignal<Record<string, FieldMetaState>>({})
   const [undoRedoManager, setUndoRedoManager] = createSignal<ReturnType<typeof createUndoRedoManager<State>> | undefined>(undefined)
-  const errorFormatter = (e: z.ZodIssue): FormixError => ({
-    path: e.path.join("."), 
-    message: e.message
-  })
   const [errors, setErrors] = createSignal<FormixError[]>([])
 
   const [formStatus, setFormStatus] = createSignal<FormStatus>({
@@ -147,7 +159,7 @@ export function createForm<
       const validationResult = await props.schema.safeParseAsync(state())
       setFormStatus(prev => ({ ...prev, validating: false }))
       if (!validationResult.success) {
-        setErrors(validationResult.error.format(errorFormatter)._errors)
+        setErrors(formatZodIssues(validationResult.error.issues))
       } else {
         setErrors([])
       }
@@ -170,7 +182,7 @@ export function createForm<
 
       const validationResult = await revalidate()
       if (!validationResult.success) {
-        setErrors(validationResult.error.format(errorFormatter)._errors)
+        setErrors(formatZodIssues(validationResult.error.issues))
       } else {
         setErrors([])
       }
