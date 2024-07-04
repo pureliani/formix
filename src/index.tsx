@@ -156,12 +156,15 @@ export function createForm<
   }
   initializeState()
 
+  let setStateCalledByUndoRedoFn = false
   const setState = async (update: Update<State | null, State>) => {
     try {
       setFormStatus(prev => ({ ...prev, isSettingState: true }))
       const next = await getUpdatedValue(state(), update);
       setStateInternal(next)
-      undoRedoManager()?.setState(next);
+      if(!setStateCalledByUndoRedoFn) {
+        undoRedoManager()?.setState(next);
+      }
 
       const validationResult = await revalidate()
       if(!validationResult.success) {
@@ -200,7 +203,12 @@ export function createForm<
     const manager = undoRedoManager()
     if (manager) {
       const previousState = manager.undo(steps);
-      await setState(previousState);
+      try {
+        setStateCalledByUndoRedoFn = true
+        await setState(previousState);
+      } finally {
+        setStateCalledByUndoRedoFn = false
+      }
     }
   }
 
@@ -208,7 +216,12 @@ export function createForm<
     const manager = undoRedoManager()
     if (manager) {
       const nextState = manager.redo(steps);
+      try {
+        setStateCalledByUndoRedoFn = true
       await setState(nextState);
+      } finally {
+        setStateCalledByUndoRedoFn = false
+      }
     }
   }
 
