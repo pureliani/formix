@@ -7,5 +7,9 @@ export default defineConfig({
   sourcemap: true,
   minify: true,
   clean: true,
-  external: ["solid-js", "zod"]
+  external: ["solid-js", "zod"],
+  esbuildOptions(options) {
+    options.jsx = 'preserve'
+    options.jsxImportSource = 'solid-js'
+  },
 })
