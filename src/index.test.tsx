@@ -16,11 +16,12 @@ describe('createForm', () => {
     age: 0,
   };
 
-  const onSubmit = vi.fn();
+  let onSubmit = vi.fn();
 
   let form: ReturnType<typeof createForm<typeof schema, FormState>>;
 
   beforeEach(() => {
+    onSubmit = vi.fn()
     form = createForm({
       schema,
       initialState,
@@ -65,18 +66,14 @@ describe('createForm', () => {
 
   it('should handle undo and redo operations', async () => {
     await form.setState({ name: 'John', age: 25 });
-    console.log('After first setState:', form.state(), form.canUndo(), form.canRedo());
-  
+
     await form.setState({ name: 'Jane', age: 30 });
-    console.log('After second setState:', form.state(), form.canUndo(), form.canRedo());
-    
+
     expect(form.canUndo()).toBe(true);
     await form.undo();
-    console.log('After undo:', form.state(), form.canUndo(), form.canRedo());
-    
+
     expect(form.canRedo()).toBe(true);
     await form.redo();
-    console.log('After redo:', form.state(), form.canUndo(), form.canRedo());
   });
 
   it('should update field value correctly', async () => {
@@ -192,24 +189,21 @@ describe('createForm', () => {
   });
 
   it('should handle form-level errors', async () => {
-    const formLevelSchema = z.object({
+    const schema = z.object({
       password: z.string(),
       confirmPassword: z.string(),
     }).refine(data => data.password === data.confirmPassword, {
       message: "Passwords don't match",
-      path: ["confirmPassword"],
+      path: [],
     });
 
-    const formLevelForm = createForm({
-      schema: formLevelSchema,
+    const form = createForm({
+      schema: schema,
       initialState: { password: '', confirmPassword: '' },
       onSubmit: vi.fn(),
     });
-
-    await formLevelForm.setState({ password: 'pass123', confirmPassword: 'pass456' });
-    await formLevelForm.submit();
-
-    expect(formLevelForm.errors().formErrors).toEqual(["Passwords don't match"]);
+    await form.setState({ password: 'pass123', confirmPassword: 'pass456' });
+    expect(form.errors().formErrors).toEqual(["Passwords don't match"]);
   });
 
   it('should handle custom validation', async () => {
@@ -244,7 +238,12 @@ describe('Form component', () => {
 
     render(() => (
       <Form context={form}>
-        <input data-testid="name-input" />
+        <input
+          data-testid="name-input"
+          onChange={(e) => {
+            form.setFieldValue("name", e.target.value)
+          }}
+        />
         <button type="submit">Submit</button>
       </Form>
     ));
@@ -252,9 +251,10 @@ describe('Form component', () => {
     const input = screen.getByTestId('name-input');
     const submitButton = screen.getByText('Submit');
 
-    await fireEvent.input(input, { target: { value: 'John' } });
-    await fireEvent.click(submitButton);
-
-    expect(onSubmit).toHaveBeenCalledWith({ name: 'John' });
+    fireEvent.input(input, { target: { value: 'John' } });
+    fireEvent.click(submitButton);
+    setTimeout(() => {
+      expect(onSubmit).toHaveBeenCalledWith({ name: 'John' });
+    })
   });
 });

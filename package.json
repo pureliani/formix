@@ -4,12 +4,13 @@
   "type": "module",
   "scripts": {
     "build": "tsup ./src/index.tsx --watch",
-    "test": "vitest run ./src",
-    "test:w": "vitest watch ./src"
+    "test": "vitest run ./src --environment=happy-dom",
+    "test:w": "vitest watch ./src --environment=happy-dom"
   },
   "devDependencies": {
     "@solidjs/testing-library": "^0.8.8",
     "@types/bun": "latest",
+    "happy-dom": "^14.12.3",
     "solid-js": "^1.8.18",
     "tsup": "^8.1.0",
     "vitest": "^1.6.0",

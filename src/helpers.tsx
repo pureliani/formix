@@ -83,8 +83,8 @@ export function get<T = any>(obj: any, path: string): T | undefined {
   const lastKey = keys.pop()
   if (!lastKey) return obj;
   let result = obj;
-  
-  
+
+
   for (const key of keys) {
     if (Array.isArray(result) && /^\d+$/.test(key)) {
       const index = parseInt(key, 10);
@@ -95,7 +95,7 @@ export function get<T = any>(obj: any, path: string): T | undefined {
       return undefined
     }
   }
-  
+
   return result?.[lastKey];
 }
 
@@ -124,8 +124,8 @@ export function set<T>(obj: T, path: string, value: any): T {
       if (!(key in current)) {
         current[key] = /^\d+$/.test(keys[i + 1] || '') ? [] : {};
       } else {
-        current[key] = Array.isArray(current[key]) 
-          ? [...current[key]] 
+        current[key] = Array.isArray(current[key])
+          ? [...current[key]]
           : { ...current[key] };
       }
       current = current[key];
