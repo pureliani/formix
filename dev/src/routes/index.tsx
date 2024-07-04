@@ -1,4 +1,4 @@
-import { createForm, Form, useField, useArrayField, FieldContext } from '@gapu/formix';
+import { createForm, Form, useField, useArrayField, FieldContext, useForm } from '@gapu/formix';
 
 import { createEffect, createSignal } from 'solid-js';
 import { z } from 'zod';
@@ -38,8 +38,6 @@ const JobApplicationForm = () => {
       console.log('Form submitted:', state);
     },
   });
-
-
 
   return (
     <Form context={formContext}>
@@ -216,7 +214,11 @@ const AdditionalInfoSection = () => {
 
 const TextField = (props: { name: string; label: string; }) => {
   const f = useField<string>(props.name)
+const form = useForm()
+createEffect(() => {
 
+  console.log(form.errors().fieldErrors)
+})
   return (
     <div class="mb-4">
       <label class="block text-sm font-medium text-gray-700 mb-1">{props.label}</label>

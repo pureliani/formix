@@ -34,20 +34,16 @@ export type FieldContext<T> = Readonly<{
   setValue: (update: Update<T>) => Promise<void>,
   meta: () => FieldMetaState
   setMeta: (update: Update<FieldMetaState>) => Promise<void>,
-  errors: () => string[]
+  errors: () => FormixError[]
   status: () => FieldStatus
   reset: () => Promise<void>
   wasModified: () => boolean
 }>
 
-export type FormErrors = Readonly<{
-  fieldErrors: Readonly<{
-    [x: string]: string[] | undefined;
-    [x: number]: string[] | undefined;
-    [x: symbol]: string[] | undefined;
-  }>
-  formErrors: string[]
-}>
+export type FormixError = {
+  path: string,
+  message: string
+}
 
 export type FormStatus = Readonly<{
   initializing: boolean;
@@ -65,7 +61,7 @@ export type FormContext<State = any> = Readonly<{
   setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
   setFieldMeta: (path: string, update: Update<FieldMetaState>) => Promise<void>
   setFieldValue: <FV>(path: string, update: Update<FV>) => Promise<void>
-  errors: () => Readonly<FormErrors>
+  errors: () => Readonly<FormixError[]>
   reset: () => Promise<void>
   submit: () => Promise<void>
   formStatus: () => Readonly<FormStatus>
@@ -114,11 +110,11 @@ export function createForm<
   const [state, setStateInternal] = createSignal<State | null>(null)
   const [fieldMetas, setFieldMetasInternal] = createSignal<Record<string, FieldMetaState>>({})
   const [undoRedoManager, setUndoRedoManager] = createSignal<ReturnType<typeof createUndoRedoManager<State>> | undefined>(undefined)
-
-  const [errors, setErrors] = createSignal<FormErrors>({
-    fieldErrors: {},
-    formErrors: []
+  const errorFormatter = (e: z.ZodIssue): FormixError => ({
+    path: e.path.join("."), 
+    message: e.message
   })
+  const [errors, setErrors] = createSignal<FormixError[]>([])
 
   const [formStatus, setFormStatus] = createSignal<FormStatus>({
     initializing: false,
@@ -151,7 +147,7 @@ export function createForm<
       const validationResult = await props.schema.safeParseAsync(state())
       setFormStatus(prev => ({ ...prev, validating: false }))
       if (!validationResult.success) {
-        setErrors(validationResult.error.flatten())
+        setErrors(validationResult.error.format(errorFormatter)._errors)
       }
     } finally {
       setFormStatus(prev => ({ ...prev, initializing: false }))
@@ -172,7 +168,7 @@ export function createForm<
 
       const validationResult = await revalidate()
       if (!validationResult.success) {
-        setErrors(validationResult.error.flatten())
+        setErrors(validationResult.error.format(errorFormatter)._errors)
       }
     } finally {
       setFormStatus(prev => ({ ...prev, isSettingState: false }))
@@ -326,9 +322,9 @@ export function useField<T>(path: string): FieldContext<T> {
     show: true
   });
 
-  const value = createMemo(() => get(form.state(), path) as T);
+  const value = () => get(form.state(), path) as T;
 
-  const errors = createMemo(() => form.errors().fieldErrors[path] ?? []);
+  const errors = () => form.errors().filter(e => e.path.startsWith(path))
 
   const wasModified = createMemo(() => {
     const currentState = get(form.state(), path);
