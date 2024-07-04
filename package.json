@@ -6,13 +6,15 @@
     "build:w": "tsup ./src/index.tsx --dts --watch",
     "test": "vitest run --environment=happy-dom",
     "test:w": "vitest watch --environment=happy-dom",
-    "test:c": "vitest run --environment=happy-dom --coverage"
+    "test:c": "vitest run --environment=happy-dom --coverage",
+    "format": "bunx @biomejs/biome format --write ."
   },
   "files": ["dist"],
   "module": "dist/index.js",
   "type": "module",
   "types": "dist/index.d.ts",
   "devDependencies": {
+    "@biomejs/biome": "1.8.3",
     "@solidjs/testing-library": "^0.8.8",
     "@types/bun": "latest",
     "@vitest/coverage-v8": "^1.6.0",

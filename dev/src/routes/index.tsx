@@ -1,25 +1,36 @@
-import { createForm, Form, useField, useArrayField, FieldContext, useForm } from '@gapu/formix';
+import {
+  createForm,
+  Form,
+  useField,
+  useArrayField,
+  FieldContext,
+  useForm,
+} from "@gapu/formix";
 
-import { Index, createEffect, createSignal } from 'solid-js';
-import { z } from 'zod';
+import { Index, createEffect, createSignal } from "solid-js";
+import { z } from "zod";
 
 const jobApplicationSchema = z.object({
   personalInfo: z.object({
-    firstName: z.string().min(2, 'First name must be at least 2 characters'),
-    lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-    email: z.string().email('Invalid email address'),
-    phone: z.string().regex(/^\d{10}$/, 'Phone number must be 10 digits'),
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    email: z.string().email("Invalid email address"),
+    phone: z.string().regex(/^\d{10}$/, "Phone number must be 10 digits"),
   }),
-  education: z.array(z.object({
-    institution: z.string().min(2, 'Institution name is required'),
-    degree: z.string().min(2, 'Degree is required'),
-    graduationYear: z.number().min(1900).max(new Date().getFullYear()),
-  })),
-  workExperience: z.array(z.object({
-    company: z.string().min(2, 'Company name is required'),
-    position: z.string().min(2, 'Position is required'),
-    currentlyWorking: z.boolean(),
-  })),
+  education: z.array(
+    z.object({
+      institution: z.string().min(2, "Institution name is required"),
+      degree: z.string().min(2, "Degree is required"),
+      graduationYear: z.number().min(1900).max(new Date().getFullYear()),
+    }),
+  ),
+  workExperience: z.array(
+    z.object({
+      company: z.string().min(2, "Company name is required"),
+      position: z.string().min(2, "Position is required"),
+      currentlyWorking: z.boolean(),
+    }),
+  ),
   skills: z.array(z.string()),
   additionalInfo: z.string().optional(),
 });
@@ -28,14 +39,14 @@ const JobApplicationForm = () => {
   const formContext = createForm({
     schema: jobApplicationSchema,
     initialState: {
-      personalInfo: { firstName: '', lastName: '', email: '', phone: '' },
+      personalInfo: { firstName: "", lastName: "", email: "", phone: "" },
       education: [],
       workExperience: [],
       skills: [],
-      additionalInfo: '',
+      additionalInfo: "",
     },
     onSubmit: async (state) => {
-      console.log('Form submitted:', state);
+      console.log("Form submitted:", state);
     },
   });
 
@@ -68,29 +79,33 @@ const PersonalInfoSection = () => {
     <section class="mb-8">
       <h2 class="text-2xl font-semibold mb-4">Personal Information</h2>
       <div class="grid grid-cols-2 gap-4">
-        <TextField label="First Name" name={'personalInfo.firstName'} />
-        <TextField label="Last Name" name={'personalInfo.lastName'} />
-        <TextField label="Email" name={'personalInfo.email'} />
-        <TextField label="Phone" name={'personalInfo.phone'} />
+        <TextField label="First Name" name={"personalInfo.firstName"} />
+        <TextField label="Last Name" name={"personalInfo.lastName"} />
+        <TextField label="Email" name={"personalInfo.email"} />
+        <TextField label="Phone" name={"personalInfo.phone"} />
       </div>
     </section>
   );
 };
 
 const EducationSection = () => {
-  const education = useArrayField('education');
+  const education = useArrayField("education");
 
   return (
     <section class="mb-8">
       <h2 class="text-2xl font-semibold mb-4">Education</h2>
       <Index each={education.value()}>
-        {(_, index) => (
-          <EducationEntry index={index} />
-        )}
+        {(_, index) => <EducationEntry index={index} />}
       </Index>
       <button
         type="button"
-        onClick={() => education.push({ institution: '', degree: '', graduationYear: new Date().getFullYear() })}
+        onClick={() =>
+          education.push({
+            institution: "",
+            degree: "",
+            graduationYear: new Date().getFullYear(),
+          })
+        }
         class="mt-2 bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition"
       >
         Add Education
@@ -102,27 +117,37 @@ const EducationSection = () => {
 const EducationEntry = (props: { index: number }) => {
   return (
     <div class="mb-4 p-4 border rounded">
-      <TextField label="Institution" name={`education.${props.index}.institution`} />
+      <TextField
+        label="Institution"
+        name={`education.${props.index}.institution`}
+      />
       <TextField label="Degree" name={`education.${props.index}.degree`} />
-      <TextField label="Graduation Year" name={`education.${props.index}.graduationYear`} />
+      <TextField
+        label="Graduation Year"
+        name={`education.${props.index}.graduationYear`}
+      />
     </div>
   );
 };
 
 const WorkExperienceSection = () => {
-  const workExperience = useArrayField('workExperience');
+  const workExperience = useArrayField("workExperience");
 
   return (
     <section class="mb-8">
       <h2 class="text-2xl font-semibold mb-4">Work Experience</h2>
       <Index each={workExperience.value()}>
-        {(_, index) => (
-          <WorkExperienceEntry index={index} />
-        )}
+        {(_, index) => <WorkExperienceEntry index={index} />}
       </Index>
       <button
         type="button"
-        onClick={() => workExperience.push({ company: '', position: '', currentlyWorking: false })}
+        onClick={() =>
+          workExperience.push({
+            company: "",
+            position: "",
+            currentlyWorking: false,
+          })
+        }
         class="mt-2 bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition"
       >
         Add Work Experience
@@ -132,12 +157,20 @@ const WorkExperienceSection = () => {
 };
 
 const WorkExperienceEntry = (props: { index: number }) => {
-  const currentlyWorking = useField<boolean>(`workExperience.${props.index}.currentlyWorking`);
+  const currentlyWorking = useField<boolean>(
+    `workExperience.${props.index}.currentlyWorking`,
+  );
 
   return (
     <div class="mb-4 p-4 border rounded">
-      <TextField label="Company" name={`workExperience.${props.index}.company`} />
-      <TextField label="Position" name={`workExperience.${props.index}.position`} />
+      <TextField
+        label="Company"
+        name={`workExperience.${props.index}.company`}
+      />
+      <TextField
+        label="Position"
+        name={`workExperience.${props.index}.position`}
+      />
       <div class="flex items-center mt-2">
         <input
           type="checkbox"
@@ -146,20 +179,22 @@ const WorkExperienceEntry = (props: { index: number }) => {
           onChange={(e) => currentlyWorking.setValue(e.target.checked)}
           class="mr-2"
         />
-        <label for={`currentlyWorking-${props.index}`}>I currently work here</label>
+        <label for={`currentlyWorking-${props.index}`}>
+          I currently work here
+        </label>
       </div>
     </div>
   );
 };
 
 const SkillsSection = () => {
-  const skills = useArrayField('skills');
-  const [newSkill, setNewSkill] = createSignal('');
+  const skills = useArrayField("skills");
+  const [newSkill, setNewSkill] = createSignal("");
 
   const addSkill = () => {
     if (newSkill()) {
       skills.push(newSkill());
-      setNewSkill('');
+      setNewSkill("");
     }
   };
 
@@ -203,7 +238,7 @@ const SkillsSection = () => {
 };
 
 const AdditionalInfoSection = () => {
-  const additionalInfo = useField<string>('additionalInfo');
+  const additionalInfo = useField<string>("additionalInfo");
 
   return (
     <section class="mb-8">
@@ -218,15 +253,17 @@ const AdditionalInfoSection = () => {
   );
 };
 
-const TextField = (props: { name: string; label: string; }) => {
-  const f = useField<string>(props.name)
-  const form = useForm()
+const TextField = (props: { name: string; label: string }) => {
+  const f = useField<string>(props.name);
+  const form = useForm();
   createEffect(() => {
-    console.log(form.errors())
-  })
+    console.log(form.errors());
+  });
   return (
     <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">{props.label}</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">
+        {props.label}
+      </label>
       <input
         value={f.value()}
         onInput={(e) => f.setValue(e.target.value)}
@@ -234,12 +271,10 @@ const TextField = (props: { name: string; label: string; }) => {
         class="w-full border rounded px-2 py-1"
       />
       <Index each={f.errors()}>
-        {(e) => (
-          <p class="text-red-500 text-sm mt-1">{e().message}</p>
-        )}
+        {(e) => <p class="text-red-500 text-sm mt-1">{e().message}</p>}
       </Index>
     </div>
-  )
+  );
 };
 
 export default JobApplicationForm;

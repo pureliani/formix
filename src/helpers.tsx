@@ -22,8 +22,10 @@ export function isEqual(a: any, b: any): boolean {
     return true;
   }
 
-  if (Object.prototype.toString.call(a) === '[object Object]' &&
-    Object.prototype.toString.call(b) === '[object Object]') {
+  if (
+    Object.prototype.toString.call(a) === "[object Object]" &&
+    Object.prototype.toString.call(b) === "[object Object]"
+  ) {
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
 
@@ -45,7 +47,10 @@ type UndoRedoState<T> = {
   currentIndex: number;
 };
 
-export function createUndoRedoManager<T>(initialState: T, maxHistorySize: number = 500) {
+export function createUndoRedoManager<T>(
+  initialState: T,
+  maxHistorySize = 500,
+) {
   let state: UndoRedoState<T> = {
     history: [initialState],
     currentIndex: 0,
@@ -55,45 +60,48 @@ export function createUndoRedoManager<T>(initialState: T, maxHistorySize: number
     state = {
       history: [
         ...state.history.slice(0, state.currentIndex + 1),
-        newState
+        newState,
       ].slice(-maxHistorySize),
       currentIndex: Math.min(state.currentIndex + 1, maxHistorySize - 1),
     };
   };
 
-  const undo = (steps: number = 1): T => {
+  const undo = (steps = 1): T => {
     state.currentIndex = Math.max(0, state.currentIndex - steps);
-    return state.history[state.currentIndex]!;
+    return state.history[state.currentIndex] as T;
   };
 
-  const redo = (steps: number = 1): T => {
-    state.currentIndex = Math.min(state.history.length - 1, state.currentIndex + steps);
-    return state.history[state.currentIndex]!;
+  const redo = (steps = 1): T => {
+    state.currentIndex = Math.min(
+      state.history.length - 1,
+      state.currentIndex + steps,
+    );
+    return state.history[state.currentIndex] as T;
   };
 
-  const canUndo = (steps: number = 1): boolean => state.currentIndex >= steps;
-  const canRedo = (steps: number = 1): boolean => state.currentIndex + steps < state.history.length;
-  const getCurrentState = (): T => state.history[state.currentIndex]!;
+  const canUndo = (steps = 1): boolean => state.currentIndex >= steps;
+  const canRedo = (steps = 1): boolean =>
+    state.currentIndex + steps < state.history.length;
+  const getCurrentState = (): T => state.history[state.currentIndex] as T;
 
   return { setState, undo, redo, canUndo, canRedo, getCurrentState };
 }
 
 export function get<T = any>(obj: any, path: string): T | undefined {
-  if (path === '') return obj;
-  const keys = path.split('.');
-  const lastKey = keys.pop()
+  if (path === "") return obj;
+  const keys = path.split(".");
+  const lastKey = keys.pop();
   if (!lastKey) return obj;
   let result = obj;
 
-
   for (const key of keys) {
     if (Array.isArray(result) && /^\d+$/.test(key)) {
-      const index = parseInt(key, 10);
+      const index = Number.parseInt(key, 10);
       result = result?.[index];
-    } else if (Object.prototype.toString.call(result) === '[object Object]') {
+    } else if (Object.prototype.toString.call(result) === "[object Object]") {
       result = result?.[key];
     } else {
-      return undefined
+      return undefined;
     }
   }
 
@@ -101,29 +109,31 @@ export function get<T = any>(obj: any, path: string): T | undefined {
 }
 
 export function set<T>(obj: T, path: string, value: any): T {
-  if (typeof obj !== 'object' || obj === null) {
+  if (typeof obj !== "object" || obj === null) {
     return obj;
   }
 
-  if (path === '' || path === '.') {
+  if (path === "" || path === ".") {
     return obj;
   }
 
-  const keys = path.split('.');
+  const keys = path.split(".");
   const result = { ...obj };
   let current: any = result;
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]?.trim();
-    if (key === undefined || key === '') {
-      throw new Error(`@gapu/formix: failed to update nested property, empty segment at index ${i}`);
+    if (key === undefined || key === "") {
+      throw new Error(
+        `@gapu/formix: failed to update nested property, empty segment at index ${i}`,
+      );
     }
 
     if (i === keys.length - 1) {
       current[key] = value;
     } else {
       if (!(key in current)) {
-        current[key] = /^\d+$/.test(keys[i + 1] || '') ? [] : {};
+        current[key] = /^\d+$/.test(keys[i + 1] || "") ? [] : {};
       } else {
         current[key] = Array.isArray(current[key])
           ? [...current[key]]
@@ -136,7 +146,10 @@ export function set<T>(obj: T, path: string, value: any): T {
   return result;
 }
 
-export async function getUpdatedValue<T, R>(prev: T, update: Update<T, R>): Promise<R> {
+export async function getUpdatedValue<T, R>(
+  prev: T,
+  update: Update<T, R>,
+): Promise<R> {
   if (update instanceof Function) {
     const result = update(prev);
     return result instanceof Promise ? await result : result;
@@ -153,8 +166,8 @@ export async function getInitialValue<T>(init: Initializer<T>): Promise<T> {
 }
 
 export const formatZodIssues = (errors: ZodIssue[]): FormixError[] => {
-  return errors.map(e => ({
+  return errors.map((e) => ({
     path: e.path.join("."),
-    message: e.message
-  }))
-}
+    message: e.message,
+  }));
+};

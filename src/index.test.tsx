@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent, screen } from '@solidjs/testing-library';
-import { createForm, Form, defaultFieldMetaState, type FormixError } from '.';
-import { z } from 'zod';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, fireEvent, screen } from "@solidjs/testing-library";
+import { createForm, Form, defaultFieldMetaState, type FormixError } from ".";
+import { z } from "zod";
 
-describe('createForm', () => {
+describe("createForm", () => {
   const schema = z.object({
     name: z.string().min(3),
     age: z.number().min(18),
@@ -12,7 +12,7 @@ describe('createForm', () => {
   type FormState = z.infer<typeof schema>;
 
   const initialState: FormState = {
-    name: '',
+    name: "",
     age: 0,
   };
 
@@ -21,7 +21,7 @@ describe('createForm', () => {
   let form: ReturnType<typeof createForm<typeof schema, FormState>>;
 
   beforeEach(() => {
-    onSubmit = vi.fn()
+    onSubmit = vi.fn();
     form = createForm({
       schema,
       initialState,
@@ -29,17 +29,17 @@ describe('createForm', () => {
     });
   });
 
-  it('should initialize with the correct initial state', () => {
+  it("should initialize with the correct initial state", () => {
     expect(form.state()).toEqual(initialState);
   });
 
-  it('should update state correctly', async () => {
-    await form.setState({ name: 'John', age: 25 });
-    expect(form.state()).toEqual({ name: 'John', age: 25 });
+  it("should update state correctly", async () => {
+    await form.setState({ name: "John", age: 25 });
+    expect(form.state()).toEqual({ name: "John", age: 25 });
   });
 
-  it('should validate the form state', async () => {
-    await form.setState({ name: 'Jo', age: 17 });
+  it("should validate the form state", async () => {
+    await form.setState({ name: "Jo", age: 17 });
     expect(form.errors()).toEqual([
       {
         path: "name",
@@ -48,32 +48,32 @@ describe('createForm', () => {
       {
         path: "age",
         message: "Number must be greater than or equal to 18",
-      }
+      },
     ] satisfies FormixError[]);
   });
 
-  it('should call onSubmit when form is valid', async () => {
-    await form.setState({ name: 'John', age: 25 });
+  it("should call onSubmit when form is valid", async () => {
+    await form.setState({ name: "John", age: 25 });
     await form.submit();
-    expect(onSubmit).toHaveBeenCalledWith({ name: 'John', age: 25 });
+    expect(onSubmit).toHaveBeenCalledWith({ name: "John", age: 25 });
   });
 
-  it('should not call onSubmit when form is invalid', async () => {
-    await form.setState({ name: 'Jo', age: 17 });
+  it("should not call onSubmit when form is invalid", async () => {
+    await form.setState({ name: "Jo", age: 17 });
     await form.submit();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('should reset the form state', async () => {
-    await form.setState({ name: 'John', age: 25 });
+  it("should reset the form state", async () => {
+    await form.setState({ name: "John", age: 25 });
     await form.reset();
     expect(form.state()).toEqual(initialState);
   });
 
-  it('should handle undo and redo operations', async () => {
-    await form.setState({ name: 'John', age: 25 });
+  it("should handle undo and redo operations", async () => {
+    await form.setState({ name: "John", age: 25 });
 
-    await form.setState({ name: 'Jane', age: 30 });
+    await form.setState({ name: "Jane", age: 30 });
 
     expect(form.canUndo()).toBe(true);
     await form.undo();
@@ -82,23 +82,26 @@ describe('createForm', () => {
     await form.redo();
   });
 
-  it('should update field value correctly', async () => {
-    await form.setFieldValue('name', 'Alice');
-    expect(form.state()?.name).toBe('Alice');
+  it("should update field value correctly", async () => {
+    await form.setFieldValue("name", "Alice");
+    expect(form.state()?.name).toBe("Alice");
   });
 
-  it('should update field meta correctly', async () => {
-    await form.setFieldMeta('name', { ...defaultFieldMetaState, touched: true });
+  it("should update field meta correctly", async () => {
+    await form.setFieldMeta("name", {
+      ...defaultFieldMetaState,
+      touched: true,
+    });
     expect(form.fieldMetas().name?.touched).toBe(true);
   });
 
-  it('should detect if form was modified', async () => {
+  it("should detect if form was modified", async () => {
     expect(form.wasModified()).toBe(false);
-    await form.setState({ name: 'John', age: 25 });
+    await form.setState({ name: "John", age: 25 });
     expect(form.wasModified()).toBe(true);
   });
 
-  it('should handle nested object schemas', async () => {
+  it("should handle nested object schemas", async () => {
     const nestedSchema = z.object({
       user: z.object({
         name: z.string().min(3),
@@ -107,19 +110,19 @@ describe('createForm', () => {
     });
     const nestedForm = createForm({
       schema: nestedSchema,
-      initialState: { user: { name: '', email: '' } },
+      initialState: { user: { name: "", email: "" } },
       onSubmit: vi.fn(),
     });
 
-    await nestedForm.setFieldValue('user.name', 'John');
-    await nestedForm.setFieldValue('user.email', 'john@example.com');
+    await nestedForm.setFieldValue("user.name", "John");
+    await nestedForm.setFieldValue("user.email", "john@example.com");
 
     expect(nestedForm.state()).toEqual({
-      user: { name: 'John', email: 'john@example.com' },
+      user: { name: "John", email: "john@example.com" },
     });
   });
 
-  it('should handle array fields', async () => {
+  it("should handle array fields", async () => {
     const arraySchema = z.object({
       tags: z.array(z.string()),
     });
@@ -129,33 +132,33 @@ describe('createForm', () => {
       onSubmit: vi.fn(),
     });
 
-    await arrayForm.setFieldValue('tags', ['tag1', 'tag2']);
-    expect(arrayForm.state()).toEqual({ tags: ['tag1', 'tag2'] });
+    await arrayForm.setFieldValue("tags", ["tag1", "tag2"]);
+    expect(arrayForm.state()).toEqual({ tags: ["tag1", "tag2"] });
 
-    await arrayForm.setFieldValue('tags.0', 'updatedTag');
-    expect(arrayForm.state()).toEqual({ tags: ['updatedTag', 'tag2'] });
+    await arrayForm.setFieldValue("tags.0", "updatedTag");
+    expect(arrayForm.state()).toEqual({ tags: ["updatedTag", "tag2"] });
   });
 
-  it('should handle multiple undo/redo operations', async () => {
-    await form.setState({ name: 'John', age: 25 });
-    await form.setState({ name: 'Jane', age: 30 });
-    await form.setState({ name: 'Bob', age: 35 });
+  it("should handle multiple undo/redo operations", async () => {
+    await form.setState({ name: "John", age: 25 });
+    await form.setState({ name: "Jane", age: 30 });
+    await form.setState({ name: "Bob", age: 35 });
 
     await form.undo(2);
-    expect(form.state()).toEqual({ name: 'John', age: 25 });
+    expect(form.state()).toEqual({ name: "John", age: 25 });
 
     await form.redo();
-    expect(form.state()).toEqual({ name: 'Jane', age: 30 });
+    expect(form.state()).toEqual({ name: "Jane", age: 30 });
 
     expect(form.canUndo()).toBe(true);
     expect(form.canRedo()).toBe(true);
   });
 
-  it('should handle edge cases in undo/redo', async () => {
+  it("should handle edge cases in undo/redo", async () => {
     expect(form.canUndo()).toBe(false);
     expect(form.canRedo()).toBe(false);
 
-    await form.setState({ name: 'John', age: 25 });
+    await form.setState({ name: "John", age: 25 });
     expect(form.canUndo()).toBe(true);
     expect(form.canRedo()).toBe(false);
 
@@ -168,82 +171,91 @@ describe('createForm', () => {
     expect(form.canRedo()).toBe(false);
   });
 
-  it('should handle async initialState', async () => {
+  it("should handle async initialState", async () => {
     const asyncForm = createForm({
       schema,
-      initialState: async () => ({ name: 'Async', age: 30 }),
+      initialState: async () => ({ name: "Async", age: 30 }),
       onSubmit: vi.fn(),
     });
 
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(asyncForm.state()).toEqual({ name: 'Async', age: 30 });
+    expect(asyncForm.state()).toEqual({ name: "Async", age: 30 });
   });
 
-  it('should handle async onSubmit', async () => {
-    const asyncOnSubmit = vi.fn().mockResolvedValue('success');
+  it("should handle async onSubmit", async () => {
+    const asyncOnSubmit = vi.fn().mockResolvedValue("success");
     const asyncForm = createForm({
       schema,
       initialState,
       onSubmit: asyncOnSubmit,
     });
 
-    await asyncForm.setState({ name: 'John', age: 25 });
+    await asyncForm.setState({ name: "John", age: 25 });
     await asyncForm.submit();
 
-    expect(asyncOnSubmit).toHaveBeenCalledWith({ name: 'John', age: 25 });
+    expect(asyncOnSubmit).toHaveBeenCalledWith({ name: "John", age: 25 });
   });
 
-  it('should handle form-level errors', async () => {
-    const schema = z.object({
-      password: z.string(),
-      confirmPassword: z.string(),
-    }).refine(data => data.password === data.confirmPassword, {
-      message: "Passwords don't match",
-      path: [],
-    });
+  it("should handle form-level errors", async () => {
+    const schema = z
+      .object({
+        password: z.string(),
+        confirmPassword: z.string(),
+      })
+      .refine((data) => data.password === data.confirmPassword, {
+        message: "Passwords don't match",
+        path: [],
+      });
 
     const form = createForm({
       schema: schema,
-      initialState: { password: '', confirmPassword: '' },
+      initialState: { password: "", confirmPassword: "" },
       onSubmit: vi.fn(),
     });
-    await form.setState({ password: 'pass123', confirmPassword: 'pass456' });
-    expect(form.errors()).toEqual([{
-      path: "",
-      message: "Passwords don't match"
-    }] satisfies FormixError[]);
+    await form.setState({ password: "pass123", confirmPassword: "pass456" });
+    expect(form.errors()).toEqual([
+      {
+        path: "",
+        message: "Passwords don't match",
+      },
+    ] satisfies FormixError[]);
   });
 
-  it('should handle custom validation', async () => {
+  it("should handle custom validation", async () => {
     const customSchema = z.object({
-      username: z.string().refine(async (val) => {
-        // Simulating an async validation (e.g., checking if username is taken)
-        await new Promise(resolve => setTimeout(resolve, 100));
-        return val !== 'taken';
-      }, { message: 'Username is already taken' })
+      username: z.string().refine(
+        async (val) => {
+          // Simulating an async validation (e.g., checking if username is taken)
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return val !== "taken";
+        },
+        { message: "Username is already taken" },
+      ),
     });
 
     const customForm = createForm({
       schema: customSchema,
-      initialState: { username: '' },
+      initialState: { username: "" },
       onSubmit: vi.fn(),
     });
 
-    await customForm.setFieldValue('username', 'taken');
+    await customForm.setFieldValue("username", "taken");
     await customForm.submit();
 
-    expect(customForm.errors()).toEqual([{
-      path: "username",
-      message: "Username is already taken"
-    }] satisfies FormixError[]);
+    expect(customForm.errors()).toEqual([
+      {
+        path: "username",
+        message: "Username is already taken",
+      },
+    ] satisfies FormixError[]);
   });
 });
 
-describe('Form component', () => {
-  it('should render children and handle submit event', async () => {
+describe("Form component", () => {
+  it("should render children and handle submit event", async () => {
     const schema = z.object({ name: z.string() });
-    const initialState = { name: '' };
+    const initialState = { name: "" };
     const onSubmit = vi.fn();
 
     const form = createForm({ schema, initialState, onSubmit });
@@ -253,20 +265,20 @@ describe('Form component', () => {
         <input
           data-testid="name-input"
           onChange={(e) => {
-            form.setFieldValue("name", e.target.value)
+            form.setFieldValue("name", e.target.value);
           }}
         />
         <button type="submit">Submit</button>
       </Form>
     ));
 
-    const input = screen.getByTestId('name-input');
-    const submitButton = screen.getByText('Submit');
+    const input = screen.getByTestId("name-input");
+    const submitButton = screen.getByText("Submit");
 
-    fireEvent.input(input, { target: { value: 'John' } });
+    fireEvent.input(input, { target: { value: "John" } });
     fireEvent.click(submitButton);
     setTimeout(() => {
-      expect(onSubmit).toHaveBeenCalledWith({ name: 'John' });
-    })
+      expect(onSubmit).toHaveBeenCalledWith({ name: "John" });
+    });
   });
 });
