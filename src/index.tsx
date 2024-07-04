@@ -77,7 +77,7 @@ export type FormContext<State = any> = Readonly<{
   wasModified: () => boolean
 }>
 
-const formContext = createContext<FormContext>()
+const FormContext = createContext<FormContext>()
 
 export type FormProps<State> = {
   context: FormContext<State>
@@ -85,16 +85,15 @@ export type FormProps<State> = {
 }
 
 export function Form<State>(props: FormProps<State>) {
-  console.log('reeeee', props.children?.toString())
   return (
-    <formContext.Provider value={props.context}>
+    <FormContext.Provider value={props.context}>
       <form onSubmit={async (e) => {
         e.preventDefault();
         await props.context.submit();
       }}>
         {props.children}
       </form>
-    </formContext.Provider>
+    </FormContext.Provider>
   )
 }
 
@@ -104,7 +103,7 @@ export type CreateFormProps<
 > = {
   schema: Schema
   initialState: Initializer<State>
-  onSubmit: <T>(state: State) => T | Promise<T>,
+  onSubmit: (state: State) => void | Promise<void>,
   undoLimit?: number
 }
 
@@ -303,7 +302,7 @@ export function createForm<
 }
 
 export function useForm<T = any,>(): FormContext<T> {
-  const c = useContext(formContext)
+  const c = useContext(FormContext)
   if (!c) {
     throw new Error("@gapu/formix: useField, useArrayField and useForm can only be used under the 'Form' provider")
   }

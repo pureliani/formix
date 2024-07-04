@@ -2,7 +2,8 @@
   "name": "@gapu/formix",
   "version": "0.1.0",
   "scripts": {
-    "build": "tsup ./src/index.tsx --watch",
+    "build": "tsup ./src/index.tsx --dts",
+    "build:w": "tsup ./src/index.tsx --watch --dts",
     "test": "vitest run ./src --environment=happy-dom",
     "test:w": "vitest watch ./src --environment=happy-dom"
   },
