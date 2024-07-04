@@ -226,7 +226,6 @@ describe("createForm", () => {
     const customSchema = z.object({
       username: z.string().refine(
         async (val) => {
-          // Simulating an async validation (e.g., checking if username is taken)
           await new Promise((resolve) => setTimeout(resolve, 100));
           return val !== "taken";
         },
