@@ -1,6 +1,6 @@
 import { createForm, Form, useField, useArrayField, FieldContext, useForm } from '@gapu/formix';
 
-import { createEffect, createSignal } from 'solid-js';
+import { Index, createEffect, createSignal } from 'solid-js';
 import { z } from 'zod';
 
 const jobApplicationSchema = z.object({
@@ -83,9 +83,11 @@ const EducationSection = () => {
   return (
     <section class="mb-8">
       <h2 class="text-2xl font-semibold mb-4">Education</h2>
-      {(education.value() ?? []).map((_: unknown, index: number) => (
-        <EducationEntry index={index} />
-      ))}
+      <Index each={education.value()}>
+        {(_, index) => (
+          <EducationEntry index={index} />
+        )}
+      </Index>
       <button
         type="button"
         onClick={() => education.push({ institution: '', degree: '', graduationYear: new Date().getFullYear() })}
@@ -113,9 +115,11 @@ const WorkExperienceSection = () => {
   return (
     <section class="mb-8">
       <h2 class="text-2xl font-semibold mb-4">Work Experience</h2>
-      {(workExperience.value() ?? []).map((_: unknown, index: number) => (
-        <WorkExperienceEntry index={index} />
-      ))}
+      <Index each={workExperience.value()}>
+        {(_, index) => (
+          <WorkExperienceEntry index={index} />
+        )}
+      </Index>
       <button
         type="button"
         onClick={() => workExperience.push({ company: '', position: '', currentlyWorking: false })}
@@ -163,18 +167,20 @@ const SkillsSection = () => {
     <section class="mb-8">
       <h2 class="text-2xl font-semibold mb-4">Skills</h2>
       <div class="flex flex-wrap gap-2 mb-4">
-        {(skills.value() ?? []).map((skill: any, index: number) => (
-          <div class="bg-gray-200 px-3 py-1 rounded">
-            {skill}
-            <button
-              type="button"
-              onClick={() => skills.remove(index)}
-              class="ml-2 text-red-500 hover:text-red-700"
-            >
-              ×
-            </button>
-          </div>
-        ))}
+        <Index each={skills.value() as string[]}>
+          {(skill, index) => (
+            <div class="bg-gray-200 px-3 py-1 rounded">
+              {skill()}
+              <button
+                type="button"
+                onClick={() => skills.remove(index)}
+                class="ml-2 text-red-500 hover:text-red-700"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </Index>
       </div>
       <div class="flex">
         <input
@@ -215,9 +221,9 @@ const AdditionalInfoSection = () => {
 const TextField = (props: { name: string; label: string; }) => {
   const f = useField<string>(props.name)
   const form = useForm()
-createEffect(() => {
-  console.log(form.errors())
-})
+  createEffect(() => {
+    console.log(form.errors())
+  })
   return (
     <div class="mb-4">
       <label class="block text-sm font-medium text-gray-700 mb-1">{props.label}</label>
@@ -227,9 +233,11 @@ createEffect(() => {
         disabled={f.meta().disabled}
         class="w-full border rounded px-2 py-1"
       />
-      {f.errors().map((e) => (
-        <p class="text-red-500 text-sm mt-1">{e.message}</p>
-      ))}
+      <Index each={f.errors()}>
+        {(e) => (
+          <p class="text-red-500 text-sm mt-1">{e().message}</p>
+        )}
+      </Index>
     </div>
   )
 };
