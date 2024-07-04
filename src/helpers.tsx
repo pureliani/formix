@@ -45,7 +45,7 @@ type UndoRedoState<T> = {
   currentIndex: number;
 };
 
-export function createUndoRedoManager<T>(initialState: T, maxHistorySize: number = 350) {
+export function createUndoRedoManager<T>(initialState: T, maxHistorySize: number = 500) {
   let state: UndoRedoState<T> = {
     history: [initialState],
     currentIndex: 0,
