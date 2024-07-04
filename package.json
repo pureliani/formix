@@ -8,6 +8,7 @@
     "test:w": "vitest watch ./src"
   },
   "devDependencies": {
+    "@solidjs/testing-library": "^0.8.8",
     "@types/bun": "latest",
     "solid-js": "^1.8.18",
     "tsup": "^8.1.0",

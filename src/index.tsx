@@ -15,6 +15,15 @@ export type FieldMetaState = Readonly<{
   show: boolean
 }>
 
+export const defaultFieldMetaState: FieldMetaState = {
+  dirty: false,
+  disabled: false,
+  loading: false,
+  readOnly: false,
+  show: true,
+  touched: false
+}
+
 export type FieldStatus = Readonly<{
   isSettingValue: boolean;
   isSettingMeta: boolean;
@@ -51,9 +60,11 @@ export type FormStatus = Readonly<{
 export type FormContext<State = any> = Readonly<{
   initialState: () => Readonly<State | null>
   state: () => Readonly<State | null>
-  setState: (update: Update<State>) => Promise<void>
+  setState: (update: Update<State | null, State>) => Promise<void>
   fieldMetas: () => Readonly<Record<string, FieldMetaState>>
   setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>
+  setFieldMeta: (path: string, update: Update<FieldMetaState>) => Promise<void>
+  setFieldValue: <FV>(path: string, update: Update<FV>) => Promise<void>
   errors: () => Readonly<FormErrors>
   reset: () => Promise<void>
   submit: () => Promise<void>
@@ -66,28 +77,39 @@ export type FormContext<State = any> = Readonly<{
   wasModified: () => boolean
 }>
 
-type FieldStatusesContext = Readonly<{
-  fieldStatuses: () => Record<string, FieldStatus>
-  setFieldStatuses: (update: Update<Record<string, FieldStatus>>) => void
-}>
-
 const formContext = createContext<FormContext>()
-const fieldStatusesContext = createContext<FieldStatusesContext>(undefined)
 
-export type FormProps<
+export type FormProps<State> = FormContext<State> & {
+  children: JSXElement
+}
+
+export function Form<State>(props: FormProps<State>) {
+  return (
+    <formContext.Provider value={props}>
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        await props.submit();
+      }}>
+        {props.children}
+      </form>
+    </formContext.Provider>
+  )
+}
+
+export type CreateFormProps<
   Schema extends z.ZodTypeAny, 
   State extends z.infer<Schema>
 > = {
   schema: Schema
   initialState: Initializer<State> 
   onSubmit: <T>(state: State) => T | Promise<T>,
-  children: JSXElement
+  undoLimit?: number
 }
 
-export function Form<
+export function createForm<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>
->(props: FormProps<Schema, State>) {
+>(props: CreateFormProps<Schema, State>): FormContext<State> {
   const [state, setStateInternal] = createSignal<State | null>(null)
   const [fieldMetas, setFieldMetasInternal] = createSignal<Record<string, FieldMetaState>>({})
   const [undoRedoManager, setUndoRedoManager] = createSignal<ReturnType<typeof createUndoRedoManager<State>> | undefined>(undefined)
@@ -121,7 +143,7 @@ export function Form<
       const result = await getInitialValue(props.initialState)
       initialState = result
       setStateInternal(result)
-      setUndoRedoManager(createUndoRedoManager<State>(result))
+      setUndoRedoManager(createUndoRedoManager<State>(result, props.undoLimit))
 
       const validationResult = await revalidate()
       if(!validationResult.success) {
@@ -158,7 +180,6 @@ export function Form<
       setFormStatus(prev => ({ ...prev, isSettingMeta: false }))
     }
   }
-
 
   const _initialState = () => initialState
 
@@ -198,50 +219,82 @@ export function Form<
     await setState(initialState);
   }
 
-  const wasModified = () => {
-    const currentState = state();
-    return currentState !== null && !isEqual(currentState, initialState);
-  };
+  const wasModified = () => !isEqual(state(), initialState);
 
-  return (
-    <formContext.Provider value={{
-      initialState: _initialState,
-      state,
-      setState,
-      formStatus,
-      fieldStatuses,
-      fieldMetas,
-      setFieldMetas,
-      errors,
-      reset,
-      submit,
-      undo,
-      redo,
-      canUndo,
-      canRedo,
-      wasModified
-    }}>
-      <fieldStatusesContext.Provider value={{
-        fieldStatuses,
-        setFieldStatuses
-      }}>
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          await submit();
-        }}>
-          {props.children}
-        </form>
-      </fieldStatusesContext.Provider>
-    </formContext.Provider>
-  )
+  const _setFieldStatus = (path: string, key: keyof FieldStatus, value: boolean) => {
+    setFieldStatuses((prev) => ({
+      ...prev,
+      [path]: {
+        ...prev[path] ?? {
+          isSettingMeta: false, 
+          isSettingValue: false,
+        },
+        [key]: value
+      }
+    }))
+  }
+
+  const setFieldValue = async <F,>(path: string, update: Update<F>) => {
+    try {
+      _setFieldStatus(path, "isSettingValue", true)
+      const currentState = state()
+      const updatedValue = await getUpdatedValue(get(currentState, path), update)
+      if(currentState) {
+        const nextState = set(currentState, path, updatedValue)
+        setState(nextState)
+      }
+    } finally {
+      _setFieldStatus(path, "isSettingValue", false)
+    }
+  }
+
+  const setFieldMeta = async (path: string, update: Update<FieldMetaState>) => {
+    try {
+      _setFieldStatus(path, "isSettingMeta", true)
+      const currentMeta = fieldMetas()[path] ?? defaultFieldMetaState
+      const next = await getUpdatedValue(currentMeta, update)
+      setFieldMetas(prev => ({
+        ...prev,
+        [path]: next
+      }))
+    } finally {
+      _setFieldStatus(path, "isSettingMeta", false)
+    }
+  }
+
+  return {
+    initialState: _initialState,
+    setFieldMeta,
+    setFieldValue,
+    state,
+    setState,
+    formStatus,
+    fieldStatuses,
+    fieldMetas,
+    setFieldMetas,
+    errors,
+    reset,
+    submit,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    wasModified
+  }
 }
 
+export function useForm<T = any,>(): FormContext<T> {
+  const c = useContext(formContext)
+  if(!c) {
+    throw new Error("@gapu/formix: useField, useArrayField and useForm can only be used under the 'Form' provider")
+  }
+  return c
+}
 
 export function useField<T>(path: string): FieldContext<T> {
   const form = useForm()
-  const statuses = useContext(fieldStatusesContext)!
 
-  const getStatus = createMemo(() => statuses.fieldStatuses()[path] ?? {
+  const getStatus = createMemo(() => form.fieldStatuses()[path] ?? {
     isSettingMeta: false,
     isSettingValue: false
   });
@@ -262,52 +315,18 @@ export function useField<T>(path: string): FieldContext<T> {
   const wasModified = createMemo(() => {
     const currentState = get(form.state(), path);
     const initialState = get(form.initialState(), path);
-    return currentState !== null && !isEqual(currentState, initialState);
+    
+    return !isEqual(currentState, initialState);
   });
 
-  const setStatus = (key: keyof FieldStatus, value: boolean) => {
-    statuses.setFieldStatuses((prev) => ({
-      ...prev,
-      [path]: {
-        ...prev[path] ?? {
-          isSettingMeta: false, 
-          isSettingValue: false,
-        },
-        [key]: value
-      }
-    }))
-  }
-
-  const setValue = async (update: Update<T>) => {
-    try {
-      setStatus("isSettingValue", true)
-      const next = await getUpdatedValue(get(form.state(), path), update)
-      const state = form.state()
-      const nextState = set(state, path, next)
-      form.setState(nextState)
-    } finally {
-      setStatus("isSettingValue", false)
-    }
-  }
-
-  const setMeta = async (update: Update<FieldMetaState>) => {
-    try {
-      setStatus("isSettingMeta", true)
-      const next = await getUpdatedValue(getMeta(), update)
-      form.setFieldMetas(prev => ({
-        ...prev,
-        [path]: next
-      }))
-    } catch {
-      setStatus("isSettingMeta", false)
-    }
-  }
-
-  const reset = async () => {
-    const initialValue = get(form.initialState(), path)
+  const reset = async <T = unknown>() => {
+    const initialValue = get<T>(form.initialState(), path)
     if(!initialValue) return
-    await setValue(initialValue)
+    await form.setFieldValue(path, initialValue)
   }
+
+  const setValue = (update: Update<T>) => form.setFieldValue(path, update)
+  const setMeta = (update: Update<FieldMetaState>) => form.setFieldMeta(path, update)
 
   return {
       value,
@@ -418,11 +437,3 @@ export function useArrayField<T>(path: string): ArrayFieldState<T> {
     swap
   }
 };
-
-export function useForm<T = any,>(): FormContext<T> {
-  const c = useContext(formContext)
-  if(!c) {
-    throw new Error("@gapu/formix: useForm/useField should be used under the 'Form' provider")
-  }
-  return c
-}
