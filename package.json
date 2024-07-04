@@ -1,12 +1,15 @@
 {
-  "name": "formix",
-  "module": "index.ts",
-  "type": "module",
+  "name": "@gapu/formix",
+  "version": "0.1.0",
   "scripts": {
     "build": "tsup ./src/index.tsx --watch",
     "test": "vitest run ./src --environment=happy-dom",
     "test:w": "vitest watch ./src --environment=happy-dom"
   },
+  "files": ["dist"],
+  "module": "dist/index.js",
+  "type": "module",
+  "types": "dist/index.d.ts",
   "devDependencies": {
     "@solidjs/testing-library": "^0.8.8",
     "@types/bun": "latest",
