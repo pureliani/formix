@@ -148,6 +148,8 @@ export function createForm<
       setFormStatus(prev => ({ ...prev, validating: false }))
       if (!validationResult.success) {
         setErrors(validationResult.error.format(errorFormatter)._errors)
+      } else {
+        setErrors([])
       }
     } finally {
       setFormStatus(prev => ({ ...prev, initializing: false }))
@@ -169,6 +171,8 @@ export function createForm<
       const validationResult = await revalidate()
       if (!validationResult.success) {
         setErrors(validationResult.error.format(errorFormatter)._errors)
+      } else {
+        setErrors([])
       }
     } finally {
       setFormStatus(prev => ({ ...prev, isSettingState: false }))
