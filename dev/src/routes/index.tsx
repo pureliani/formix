@@ -214,10 +214,9 @@ const AdditionalInfoSection = () => {
 
 const TextField = (props: { name: string; label: string; }) => {
   const f = useField<string>(props.name)
-const form = useForm()
+  const form = useForm()
 createEffect(() => {
-
-  console.log(form.errors().fieldErrors)
+  console.log(form.errors())
 })
   return (
     <div class="mb-4">
@@ -229,7 +228,7 @@ createEffect(() => {
         class="w-full border rounded px-2 py-1"
       />
       {f.errors().map((e) => (
-        <p class="text-red-500 text-sm mt-1">{e}</p>
+        <p class="text-red-500 text-sm mt-1">{e.message}</p>
       ))}
     </div>
   )
