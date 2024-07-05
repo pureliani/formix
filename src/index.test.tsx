@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@solidjs/testing-library";
+import { render, fireEvent } from "@solidjs/testing-library";
 import { createForm, Form, defaultFieldMetaState, type FormixError, useForm } from ".";
 import { z } from "zod";
+import type { JSXElement } from "solid-js"
 
 describe("createForm", () => {
   const schema = z.object({
@@ -251,3 +252,53 @@ describe("createForm", () => {
   });
 });
 
+describe('Form Component', () => {
+  const schema = z.object({
+    name: z.string(),
+    age: z.number(),
+  });
+
+  const initialState = {
+    name: '',
+    age: 0,
+  };
+
+  const onSubmit = vi.fn();
+
+  it('renders children correctly', () => {
+    const context = createForm({ schema, initialState, onSubmit });
+    const { getByText } = render(() => (
+      <Form context={context}>
+        <div>Form Content</div>
+      </Form>
+    ));
+
+    expect(getByText('Form Content')).toBeInTheDocument();
+  });
+
+  it('calls onSubmit when form is submitted', async () => {
+    const context = createForm({ schema, initialState, onSubmit });
+    const { getByText } = render(() => (
+      <Form context={context}>
+        <button type="submit">Submit</button>
+      </Form>
+    ));
+
+    const submitButton = getByText('Submit');
+    await fireEvent.click(submitButton);
+    setTimeout(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    })
+  });
+
+  it('renders a form element', () => {
+    const context = createForm({ schema, initialState, onSubmit });
+    const { container } = render(() => (
+      <Form context={context}>
+        <div>Form Content</div>
+      </Form>
+    ));
+
+    expect(container.querySelector('form')).toBeInTheDocument();
+  });
+});

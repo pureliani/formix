@@ -73,7 +73,7 @@ export type FormStatus = Readonly<{
   settingMeta: boolean;
 }>;
 
-export type FormContextProps<State = unknown> = Readonly<{
+export type FormContextProps<State> = Readonly<{
   initialState: () => Readonly<State | null>;
   state: () => Readonly<State | null>;
   setState: (update: Update<State, State>) => Promise<void>;
@@ -95,7 +95,7 @@ export type FormContextProps<State = unknown> = Readonly<{
   wasModified: () => boolean;
 }>;
 
-const FormContext = createContext<FormContextProps>();
+const FormContext = createContext<FormContextProps<any>>();
 
 export type CreateFormProps<
   Schema extends z.ZodTypeAny,
@@ -329,7 +329,7 @@ export type FormProps<State> = {
   children: JSXElement;
 };
 
-export function Form(props: FormProps<unknown>) {
+export function Form<T = unknown>(props: FormProps<T>) {
   return (
     <FormContext.Provider value={props.context}>
       <form
@@ -344,7 +344,7 @@ export function Form(props: FormProps<unknown>) {
   );
 }
 
-export function useForm(): FormContextProps<unknown> {
+export function useForm<State = unknown>(): FormContextProps<State> {
   const c = useContext(FormContext);
   if (!c) {
     throw new Error(
@@ -388,8 +388,8 @@ export function useField<T>(path: string): FieldContext<T> {
     return !isEqual(currentState, initialState);
   });
 
-  const reset = async <T = unknown>() => {
-    const initialValue = get<T>(form.initialState(), path);
+  const reset = async () => {
+    const initialValue = get(form.initialState(), path);
     if (!initialValue) return;
     await form.setFieldValue(path, initialValue);
   };
