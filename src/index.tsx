@@ -93,26 +93,6 @@ export type FormContextProps<State = any> = Readonly<{
 
 const FormContext = createContext<FormContextProps>();
 
-export type FormProps<State> = {
-  context: FormContextProps<State>;
-  children: JSXElement;
-};
-
-export function Form<State>(props: FormProps<State>) {
-  return (
-    <FormContext.Provider value={props.context}>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          await props.context.submit();
-        }}
-      >
-        {props.children}
-      </form>
-    </FormContext.Provider>
-  );
-}
-
 export type CreateFormProps<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>,
@@ -330,6 +310,26 @@ export function createForm<
     canRedo,
     wasModified,
   };
+}
+
+export type FormProps<State> = {
+  context: FormContextProps<State>;
+  children: JSXElement;
+};
+
+export function Form<State>(props: FormProps<State>) {
+  return (
+    <FormContext.Provider value={props.context}>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await props.context.submit();
+        }}
+      >
+        {props.children}
+      </form>
+    </FormContext.Provider>
+  );
 }
 
 export function useForm<T = any>(): FormContextProps<T> {

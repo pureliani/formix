@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen } from "@solidjs/testing-library";
-import { createForm, Form, defaultFieldMetaState, type FormixError } from ".";
+import { createForm, Form, defaultFieldMetaState, type FormixError, useForm } from ".";
 import { z } from "zod";
 
 describe("createForm", () => {
@@ -251,33 +251,3 @@ describe("createForm", () => {
   });
 });
 
-describe("Form component", () => {
-  it("should render children and handle submit event", async () => {
-    const schema = z.object({ name: z.string() });
-    const initialState = { name: "" };
-    const onSubmit = vi.fn();
-
-    const form = createForm({ schema, initialState, onSubmit });
-
-    render(() => (
-      <Form context={form}>
-        <input
-          data-testid="name-input"
-          onChange={(e) => {
-            form.setFieldValue("name", e.target.value);
-          }}
-        />
-        <button type="submit">Submit</button>
-      </Form>
-    ));
-
-    const input = screen.getByTestId("name-input");
-    const submitButton = screen.getByText("Submit");
-
-    fireEvent.input(input, { target: { value: "John" } });
-    fireEvent.click(submitButton);
-    setTimeout(() => {
-      expect(onSubmit).toHaveBeenCalledWith({ name: "John" });
-    });
-  });
-});

@@ -1,29 +1,31 @@
 {
-	"name": "@gapu/formix",
-	"version": "0.1.0",
-	"scripts": {
-		"build": "tsup ./src/index.tsx --dts",
-		"build:w": "tsup ./src/index.tsx --dts --watch",
-		"test": "vitest run --environment=happy-dom",
-		"test:w": "vitest watch --environment=happy-dom",
-		"test:c": "vitest run --environment=happy-dom --coverage"
-	},
-	"files": ["dist"],
-	"module": "dist/index.js",
-	"type": "module",
-	"types": "dist/index.d.ts",
-	"devDependencies": {
-		"@solidjs/testing-library": "^0.8.8",
-		"@types/bun": "latest",
-		"@vitest/coverage-v8": "^1.6.0",
-		"happy-dom": "^14.12.3",
-		"solid-js": "^1.8.18",
-		"tsup": "^8.1.0",
-		"vitest": "^1.6.0",
-		"zod": "^3.23.8"
-	},
-	"peerDependencies": {
-		"typescript": "^5.0.0",
-		"solid-js": "*"
-	}
+  "name": "@gapu/formix",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsup ./src/index.tsx --dts",
+    "build:w": "tsup ./src/index.tsx --dts --watch",
+    "test": "vitest run --environment=happy-dom",
+    "test:w": "vitest watch --environment=happy-dom",
+    "test:c": "vitest run --environment=happy-dom --coverage"
+  },
+  "files": ["dist"],
+  "module": "dist/index.js",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.8.8",
+    "@types/bun": "latest",
+    "@vitest/coverage-v8": "^1.6.0",
+    "@testing-library/jest-dom": "^6.4.6",
+    "jsdom": "^24.1.0",
+    "solid-js": "^1.8.18",
+    "tsup": "^8.1.0",
+    "vite-plugin-solid": "^2.10.2",
+    "vitest": "^1.6.0",
+    "zod": "^3.23.8"
+  },
+  "peerDependencies": {
+    "typescript": "^4.9.5",
+    "solid-js": "*"
+  }
 }
