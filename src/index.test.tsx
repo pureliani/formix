@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
+import { createRoot } from "solid-js"
 import { createForm, Form, defaultFieldMetaState, type FormixError, useForm, useField, useArrayField } from ".";
 import { z } from "zod";
-import type { JSXElement } from "solid-js"
 
 describe("createForm", () => {
   const schema = z.object({
@@ -300,6 +300,19 @@ describe('Form Component', () => {
     ));
 
     expect(container.querySelector('form')).toBeInTheDocument();
+  });
+});
+
+describe('useForm Hook', () => {
+  it('throws error when used outside of Form provider', () => {
+    const TestComponent = () => {
+      useForm();
+      return null;
+    };
+
+    expect(() => {
+      createRoot(() => render(() => <TestComponent />));
+    }).toThrow("@gapu/formix: useField, useArrayField and useForm can only be used under the 'Form' provider");
   });
 });
 
