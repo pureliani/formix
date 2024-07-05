@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
-import { createForm, Form, defaultFieldMetaState, type FormixError, useForm } from ".";
+import { createForm, Form, defaultFieldMetaState, type FormixError, useForm, useField } from ".";
 import { z } from "zod";
 import type { JSXElement } from "solid-js"
 
@@ -300,5 +300,146 @@ describe('Form Component', () => {
     ));
 
     expect(container.querySelector('form')).toBeInTheDocument();
+  });
+});
+
+describe('useField Hook', () => {
+  const schema = z.object({
+    name: z.string(),
+    age: z.number(),
+    isActive: z.boolean(),
+  });
+
+  const initialState = {
+    name: 'John Doe',
+    age: 30,
+    isActive: true,
+  };
+
+  const onSubmit = vi.fn();
+
+  function TestComponent({ path }: { path: string }) {
+    const field = useField(path);
+    return (
+      <div>
+        <span data-testid="value">{JSON.stringify(field.value())}</span>
+        <span data-testid="errors">{JSON.stringify(field.errors())}</span>
+        <span data-testid="meta">{JSON.stringify(field.meta())}</span>
+        <button onClick={() => field.setValue('New Value')}>Set Value</button>
+        <button onClick={() => field.setMeta(prev => ({ ...prev, touched: true }))}>Set Meta</button>
+        <button onClick={() => field.reset()}>Reset</button>
+      </div>
+    );
+  }
+
+  function setup(path: string) {
+    const context = createForm({ schema, initialState, onSubmit });
+    return render(() => (
+      <Form context={context}>
+        <TestComponent path={path} />
+      </Form>
+    ));
+  }
+
+  it('returns correct initial value', () => {
+    const { getByTestId } = setup('name');
+    setTimeout(() => {
+      expect(getByTestId('value').textContent).toBe('"John Doe"');
+    })
+  });
+
+  it('updates value correctly', async () => {
+    const { getByTestId, getByText } = setup('name');
+    fireEvent.click(getByText('Set Value'));
+    setTimeout(() => {
+      expect(getByTestId('value').textContent).toBe('"New Value"');
+    })
+  });
+
+  it('updates meta correctly', async () => {
+    const { getByTestId, getByText } = setup('name');
+    fireEvent.click(getByText('Set Meta'));
+    const meta = JSON.parse(getByTestId('meta').textContent || '{}');
+    setTimeout(() => {
+      expect(meta.touched).toBe(true);
+    }, 100)
+  });
+
+  it('resets field to initial value', async () => {
+    const { getByTestId, getByText } = setup('name');
+    await fireEvent.click(getByText('Set Value'));
+    await fireEvent.click(getByText('Reset'));
+    expect(getByTestId('value').textContent).toBe('"John Doe"');
+  });
+
+  it('handles errors correctly', () => {
+    const context = createForm({
+      schema,
+      initialState: { ...initialState, age: 'invalid' as any },
+      onSubmit,
+    });
+
+    const { getByTestId } = render(() => (
+      <Form context={context}>
+        <TestComponent path="age" />
+      </Form>
+    ));
+
+    const errors = JSON.parse(getByTestId('errors').textContent || '[]');
+    setTimeout(() => {
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toContain('Expected number');
+    }, 100)
+  });
+
+  it('returns correct isRequired value', () => {
+    let isRequiredResult: boolean | undefined;
+
+    const TestIsRequired = () => {
+      const field = useField('name');
+      isRequiredResult = field.isRequired();
+      return null;
+    };
+
+    const context = createForm({ schema, initialState, onSubmit });
+    render(() => (
+      <Form context={context}>
+        <TestIsRequired />
+      </Form>
+    ));
+
+    expect(isRequiredResult).toBe(true);
+  });
+
+  it('returns correct wasModified value', async () => {
+    let wasModifiedResult: boolean | undefined;
+
+    const TestWasModified = () => {
+      const field = useField('name');
+      wasModifiedResult = field.wasModified();
+      return (
+        <button onClick={async () => {
+          await field.setValue('Modified Value')
+          wasModifiedResult = field.wasModified()
+        }}>
+          Modify
+        </button>
+      );
+    };
+
+    const context = createForm({ schema, initialState, onSubmit });
+    const { getByText } = render(() => (
+      <Form context={context}>
+        <TestWasModified />
+      </Form>
+    ));
+
+    expect(wasModifiedResult).toBe(false);
+
+    fireEvent.click(getByText('Modify'));
+
+    setTimeout(() => {
+      expect(wasModifiedResult).toBe(true);
+    })
   });
 });
