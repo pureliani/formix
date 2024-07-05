@@ -4,9 +4,9 @@
   "scripts": {
     "build": "tsup ./src/index.tsx --dts",
     "build:w": "tsup ./src/index.tsx --dts --watch",
-    "test": "vitest run --environment=happy-dom",
-    "test:w": "vitest watch --environment=happy-dom",
-    "test:c": "vitest run --environment=happy-dom --coverage"
+    "test": "vitest run",
+    "test:w": "vitest watch",
+    "test:c": "vitest run --coverage"
   },
   "files": ["dist"],
   "module": "dist/index.js",
