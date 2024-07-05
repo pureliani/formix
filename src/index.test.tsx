@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
-import { createForm, Form, defaultFieldMetaState, type FormixError, useForm, useField } from ".";
+import { createForm, Form, defaultFieldMetaState, type FormixError, useForm, useField, useArrayField } from ".";
 import { z } from "zod";
 import type { JSXElement } from "solid-js"
 
@@ -441,5 +441,105 @@ describe('useField Hook', () => {
     setTimeout(() => {
       expect(wasModifiedResult).toBe(true);
     })
+  });
+});
+
+describe('useArrayField Hook', () => {
+  const schema = z.object({
+    items: z.array(z.string()),
+  });
+
+  const initialState = {
+    items: ['item1', 'item2', 'item3'],
+  };
+
+  const onSubmit = vi.fn();
+
+  function TestComponent() {
+    const arrayField = useArrayField<string>('items');
+    return (
+      <div>
+        <span data-testid="value">{JSON.stringify(arrayField.value())}</span>
+        <button onClick={() => arrayField.push('newItem')}>Push</button>
+        <button onClick={() => arrayField.remove(1)}>Remove</button>
+        <button onClick={() => arrayField.move(0, 2)}>Move</button>
+        <button onClick={() => arrayField.insert(1, 'insertedItem')}>Insert</button>
+        <button onClick={() => arrayField.replace(0, 'replacedItem')}>Replace</button>
+        <button onClick={() => arrayField.empty()}>Empty</button>
+        <button onClick={() => arrayField.swap(0, 2)}>Swap</button>
+      </div>
+    );
+  }
+
+  function setup() {
+    const context = createForm({ schema, initialState, onSubmit });
+    return render(() => (
+      <Form context={context}>
+        <TestComponent />
+      </Form>
+    ));
+  }
+
+  it('initializes with correct value', () => {
+    const { getByTestId } = setup();
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3']);
+    });
+  });
+
+  it('pushes new item correctly', async () => {
+    const { getByTestId, getByText } = setup();
+    fireEvent.click(getByText('Push'));
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3', 'newItem']);
+    });
+  });
+
+  it('removes item correctly', async () => {
+    const { getByTestId, getByText } = setup();
+    fireEvent.click(getByText('Remove'));
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item3']);
+    });
+  });
+
+  it('moves item correctly', async () => {
+    const { getByTestId, getByText } = setup();
+    fireEvent.click(getByText('Move'));
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item2', 'item3', 'item1']);
+    });
+  });
+
+  it('inserts item correctly', async () => {
+    const { getByTestId, getByText } = setup();
+    await fireEvent.click(getByText('Insert'));
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'insertedItem', 'item2', 'item3']);
+    });
+  });
+
+  it('replaces item correctly', async () => {
+    const { getByTestId, getByText } = setup();
+    fireEvent.click(getByText('Replace'));
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['replacedItem', 'item2', 'item3']);
+    });
+  });
+
+  it('empties array correctly', async () => {
+    const { getByTestId, getByText } = setup();
+    fireEvent.click(getByText('Empty'));
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual([]);
+    });
+  });
+
+  it('swaps items correctly', async () => {
+    const { getByTestId, getByText } = setup();
+    fireEvent.click(getByText('Swap'));
+    setTimeout(() => {
+      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item3', 'item2', 'item1']);
+    });
   });
 });
