@@ -15,9 +15,12 @@ import {
   getInitialValue,
   getUpdatedValue,
   isEqual,
+  isFieldRequired as _isFieldRequired,
   set,
+  type NullOrOptional,
 } from "./helpers";
 
+export type { NullOrOptional }
 export type Update<T, R = T> = R | ((prev: T) => R) | ((prev: T) => Promise<R>);
 export type SyncUpdate<T, R = T> = R | ((prev: T) => R);
 export type Initializer<T> = T | (() => T) | (() => Promise<T>);
@@ -50,6 +53,7 @@ export type FieldContext<T> = Readonly<{
   setValue: (update: Update<T>) => Promise<void>;
   meta: () => FieldMetaState;
   setMeta: (update: Update<FieldMetaState>) => Promise<void>;
+  isRequired: (variant?: NullOrOptional[]) => boolean,
   errors: () => FormixError[];
   status: () => FieldStatus;
   reset: () => Promise<void>;
@@ -69,14 +73,14 @@ export type FormStatus = Readonly<{
   settingMeta: boolean;
 }>;
 
-export type FormContextProps<State = any> = Readonly<{
+export type FormContextProps<State = unknown> = Readonly<{
   initialState: () => Readonly<State | null>;
   state: () => Readonly<State | null>;
   setState: (update: Update<State, State>) => Promise<void>;
   fieldMetas: () => Readonly<Record<string, FieldMetaState>>;
-  setFieldMetas: (
-    update: Update<Record<string, FieldMetaState>>,
-  ) => Promise<void>;
+  isFieldRequired: (path: string, variant?: NullOrOptional[]) => boolean
+  formSchema: () => z.ZodTypeAny
+  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>;
   setFieldMeta: (path: string, update: Update<FieldMetaState>) => Promise<void>;
   setFieldValue: <FV>(path: string, update: Update<FV>) => Promise<void>;
   errors: () => Readonly<FormixError[]>;
@@ -291,8 +295,16 @@ export function createForm<
     }
   };
 
+  const formSchema = () => props.schema
+
+  const isFieldRequired = (path: string, variant?: NullOrOptional[]) => {
+    return _isFieldRequired(formSchema(), path, variant)
+  }
+
   return {
     initialState: _initialState,
+    formSchema,
+    isFieldRequired,
     setFieldMeta,
     setFieldValue,
     state,
@@ -317,7 +329,7 @@ export type FormProps<State> = {
   children: JSXElement;
 };
 
-export function Form<State>(props: FormProps<State>) {
+export function Form(props: FormProps<unknown>) {
   return (
     <FormContext.Provider value={props.context}>
       <form
@@ -332,7 +344,7 @@ export function Form<State>(props: FormProps<State>) {
   );
 }
 
-export function useForm<T = any>(): FormContextProps<T> {
+export function useForm(): FormContextProps<unknown> {
   const c = useContext(FormContext);
   if (!c) {
     throw new Error(
@@ -386,9 +398,12 @@ export function useField<T>(path: string): FieldContext<T> {
   const setMeta = (update: Update<FieldMetaState>) =>
     form.setFieldMeta(path, update);
 
+  const isRequired = (variant?: NullOrOptional[]) => form.isFieldRequired(path, variant)
+
   return {
     value,
     setValue,
+    isRequired,
     meta: getMeta,
     setMeta,
     errors,

@@ -1,4 +1,4 @@
-import type { ZodIssue } from "zod";
+import { type ZodIssue, type ZodTypeAny, ZodObject, ZodArray, ZodOptional, ZodNullable } from "zod";
 import type { FormixError, Initializer, Update } from ".";
 
 export function isEqual(a: any, b: any): boolean {
@@ -171,3 +171,56 @@ export const formatZodIssues = (errors: ZodIssue[]): FormixError[] => {
     message: e.message,
   }));
 };
+
+const isFieldRequiredCheck = (currentSchema: ZodTypeAny, variant: NullOrOptional[]) => {
+  const checkNullable = variant.includes("nullable")
+  const checkOptional = variant.includes("optional")
+
+  if (checkNullable && checkOptional) {
+    return !(currentSchema instanceof ZodOptional || currentSchema instanceof ZodNullable)
+  }
+
+  if (checkNullable) {
+    return !(currentSchema instanceof ZodNullable)
+  }
+
+  if (checkOptional) {
+    return !(currentSchema instanceof ZodOptional)
+  }
+
+  return true
+}
+
+export type NullOrOptional = "nullable" | "optional"
+export function isFieldRequired(
+  schema: ZodTypeAny,
+  path: string,
+  variant: NullOrOptional[] = ["nullable", "optional"]
+): boolean {
+  if (path === '') {
+    return isFieldRequiredCheck(schema, variant);
+  }
+
+  const parts = path.split('.');
+  let currentSchema: ZodTypeAny = schema;
+
+  for (const part of parts) {
+    if (currentSchema instanceof ZodObject) {
+      const shape = currentSchema.shape;
+      if (!(part in shape)) {
+        throw new Error(`@gapu/formix: Invalid path: ${path}. Property "${part}" does not exist.`);
+      }
+      currentSchema = shape[part];
+    } else if (currentSchema instanceof ZodArray) {
+      const index = parseInt(part, 10);
+      if (isNaN(index)) {
+        throw new Error(`@gapu/formix: Invalid array index: ${part} in path: ${path}`);
+      }
+      currentSchema = currentSchema.element;
+    } else {
+      throw new Error(`@gapu/formix: Invalid path: ${path}. "${part}" is not an object or array.`);
+    }
+  }
+
+  return isFieldRequiredCheck(currentSchema, variant)
+}

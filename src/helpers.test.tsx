@@ -1,5 +1,6 @@
+import { z, type ZodTypeAny } from 'zod';
 import { describe, expect, it } from "vitest";
-import { createUndoRedoManager, get, isEqual, set } from "./helpers";
+import { createUndoRedoManager, get, isEqual, set, isFieldRequired, type NullOrOptional } from "./helpers";
 
 describe("isEqual", () => {
   it("should return true for identical primitives", () => {
@@ -283,5 +284,141 @@ describe("createUndoRedoManager", () => {
     expect(manager.getCurrentState()).toBe(3);
     expect(manager.undo()).toBe(1);
     expect(manager.redo()).toBe(3);
+  });
+});
+
+describe('isFieldRequired', () => {
+  it('should return true for required fields', () => {
+    const schema = z.object({ field: z.string() });
+    expect(isFieldRequired(schema, 'field')).toBe(true);
+  });
+
+  it('should return false for optional fields', () => {
+    const schema = z.object({ field: z.string().optional() });
+    expect(isFieldRequired(schema, 'field')).toBe(false);
+  });
+
+  it('should return false for nullable fields', () => {
+    const schema = z.object({ field: z.string().nullable() });
+    expect(isFieldRequired(schema, 'field')).toBe(false);
+  });
+
+  it('should return false for optional and nullable fields', () => {
+    const schema = z.object({ field: z.string().optional().nullable() });
+    expect(isFieldRequired(schema, 'field')).toBe(false);
+  });
+
+  const nestedSchema = z.object({
+    level1: z.object({
+      level2: z.object({
+        field: z.string()
+      })
+    })
+  });
+
+  it('should handle nested required fields', () => {
+    expect(isFieldRequired(nestedSchema, 'level1.level2.field')).toBe(true);
+  });
+
+  it('should handle nested optional fields', () => {
+    const schema = nestedSchema.extend({
+      level1: z.object({
+        level2: z.object({
+          field: z.string().optional(),
+          field2: z.string().nullable()
+        })
+      })
+    });
+    expect(isFieldRequired(schema, 'level1.level2.field')).toBe(false);
+    expect(isFieldRequired(schema, 'level1.level2.field2')).toBe(false);
+  });
+
+  it('should handle array of primitives', () => {
+    const schema = z.object({ arr: z.array(z.string()) });
+    expect(isFieldRequired(schema, 'arr.0')).toBe(true);
+    expect(isFieldRequired(schema, 'arr.1')).toBe(true);
+    expect(isFieldRequired(schema, 'arr.2')).toBe(true);
+  });
+
+  it('should handle array of objects', () => {
+    const schema = z.object({
+      arr: z.array(z.object({ field: z.string() }))
+    });
+    expect(isFieldRequired(schema, 'arr.0.field')).toBe(true);
+  });
+
+  it('should handle optional array items', () => {
+    const schema = z.object({
+      arr: z.array(z.object({ field: z.string().optional(), field2: z.string().nullable() }))
+    });
+    expect(isFieldRequired(schema, 'arr.0.field')).toBe(false);
+    expect(isFieldRequired(schema, 'arr.1.field2')).toBe(false);
+  });
+
+  const mixedSchema = z.object({
+    obj: z.object({
+      arr: z.array(z.object({
+        nested: z.object({
+          field: z.string()
+        })
+      }))
+    })
+  });
+
+  it('should handle deep nested fields in mixed schemas', () => {
+    expect(isFieldRequired(mixedSchema, 'obj.arr.0.nested.field')).toBe(true);
+  });
+
+  it('should handle optional fields in mixed schemas', () => {
+    const schema = mixedSchema.extend({
+      obj: z.object({
+        arr: z.array(z.object({
+          nested: z.object({
+            field: z.string().optional()
+          })
+        }))
+      })
+    });
+    expect(isFieldRequired(schema, 'obj.arr.0.nested.field')).toBe(false);
+  });
+
+  it('should throw error for non-existent path', () => {
+    const schema = z.object({ field: z.string() });
+    expect(() => isFieldRequired(schema, 'nonexistent')).toThrow();
+  });
+
+  it('should throw error for invalid array index', () => {
+    const schema = z.object({ arr: z.array(z.string()) });
+    expect(() => isFieldRequired(schema, 'arr.invalid')).toThrow();
+  });
+
+  it('should throw error for accessing primitive as object', () => {
+    const schema = z.object({ field: z.string() });
+    expect(() => isFieldRequired(schema, 'field.invalid')).toThrow();
+  });
+
+  it('should handle empty path', () => {
+    const schema = z.string();
+    expect(isFieldRequired(schema, '')).toBe(true);
+  });
+
+  it('should handle root level optional schema', () => {
+    const schema = z.string().optional();
+    expect(isFieldRequired(schema, '')).toBe(false);
+  });
+
+  it('should respect custom nullable variant', () => {
+    const schema = z.object({ field: z.string().nullable() });
+    expect(isFieldRequired(schema, 'field', ['optional'])).toBe(true);
+  });
+
+  it('should respect custom optional variant', () => {
+    const schema = z.object({ field: z.string().optional() });
+    expect(isFieldRequired(schema, 'field', ['nullable'])).toBe(true);
+  });
+
+  it('should handle empty variant array', () => {
+    const schema = z.object({ field: z.string().optional().nullable() });
+    expect(isFieldRequired(schema, 'field', [])).toBe(true);
   });
 });
