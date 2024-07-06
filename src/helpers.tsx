@@ -113,26 +113,30 @@ export function set(obj: any, path: string, value: any): any {
     return obj;
   }
 
-  if (path === '' || path === '.') {
+  if (path === '') {
     return obj;
   }
 
-  const segments = path.split('.');
+  const keys = path.split('.');
 
-  if (segments.some(segment => segment === '')) {
-    const index = segments.findIndex(segment => segment === '');
-    throw new Error(`@gapu/formix: failed to update nested property, empty segment at index ${index}`);
+  const emptyKeyIndex = keys.findIndex(key => key === '');
+  if (emptyKeyIndex != -1) {
+    throw new Error(`@gapu/formix: failed to update nested property, empty key at index ${emptyKeyIndex}`);
   }
 
   const result = Array.isArray(obj) ? [...obj] : { ...obj };
   let current = result;
 
-  for (let i = 0; i < segments.length - 1; i++) {
-    const segment = segments[i];
-    const nextSegment = segments[i + 1];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const segment = keys[i];
+    const nextSegment = keys[i + 1];
+
+    if (segment === undefined) {
+      throw new Error(`@gapu/formix: undefined segment at index ${i}`);
+    }
 
     if (!(segment in current)) {
-      current[segment] = isNaN(Number(nextSegment)) ? {} : [];
+      current[segment] = nextSegment !== undefined && !isNaN(Number(nextSegment)) ? [] : {};
     } else if (typeof current[segment] !== 'object') {
       current[segment] = {};
     }
@@ -140,10 +144,15 @@ export function set(obj: any, path: string, value: any): any {
     current = current[segment];
   }
 
-  const lastSegment = segments[segments.length - 1];
+  const lastSegment = keys[keys.length - 1];
+  if (lastSegment === undefined) {
+    throw new Error(`@gapu/formix: undefined last segment`);
+  }
+
   if (Array.isArray(current) && isNaN(Number(lastSegment))) {
     throw new Error(`@gapu/formix: cannot use non-numeric index on array`);
   }
+
   current[lastSegment] = value;
 
   return result;

@@ -177,43 +177,37 @@ describe("set", () => {
     expect(result).toEqual({ a: 1 });
   });
 
-  it("should return the same object if key is undefined", () => {
-    const obj = { a: 1 };
-    const result = set(obj, ".", 2);
-    expect(result).toEqual({ a: 1 });
-  });
-
   it("should handle non-object values", () => {
     const value = 42;
     const result = set(value, "a.b", 2);
     expect(result).toBe(42);
   });
 
-  it("should throw an error for path with empty segment", () => {
+  it("should throw an error for path with empty key", () => {
     const obj = { a: 1 };
     expect(() => set(obj, "a..b", 2)).toThrow(
-      "@gapu/formix: failed to update nested property, empty segment at index 1",
+      "@gapu/formix: failed to update nested property, empty key at index 1",
     );
   });
 
   it("should throw an error for path starting with a dot", () => {
     const obj = { a: 1 };
     expect(() => set(obj, ".a.b", 2)).toThrow(
-      "@gapu/formix: failed to update nested property, empty segment at index 0",
+      "@gapu/formix: failed to update nested property, empty key at index 0",
     );
   });
 
   it("should throw an error for path ending with a dot", () => {
     const obj = { a: 1 };
     expect(() => set(obj, "a.b.", 2)).toThrow(
-      "@gapu/formix: failed to update nested property, empty segment at index 2",
+      "@gapu/formix: failed to update nested property, empty key at index 2",
     );
   });
 
   it("should throw an error for path with consecutive dots", () => {
     const obj = { a: 1 };
     expect(() => set(obj, "a...b", 2)).toThrow(
-      "@gapu/formix: failed to update nested property, empty segment at index 1",
+      "@gapu/formix: failed to update nested property, empty key at index 1",
     );
   });
 
