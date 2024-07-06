@@ -32,7 +32,7 @@ const formContext = createForm({
 * `schema`: A Zod schema that defines the structure and validation rules for your form data.  
 * `initialState`: The initial state of your form. This can be an object matching your schema, a function that returns such an object, or a function that returns a Promise resolving to such an object.  
 * `onSubmit`: A function that will be called when the form is submitted successfully. It receives the validated form state as its argument. 
-* `undoLimit` (optional): The maximum number of undo steps to keep in history.
+* `undoLimit` (optional, default = 500): The maximum number of undo steps to keep in history.
 
 ### Return Value:
 `createForm` returns a form context object with various methods and properties for managing your form:
@@ -60,7 +60,7 @@ const formContext = createForm({
 ## Form Component
 The Form component is a crucial part of this library. Its primary purpose is to serve as a context provider, making the form context available to all descendant components.
 
-Usage:
+### Usage
 ```tsx
 import { createForm, Form } from '@gapu/formix';
 
@@ -83,7 +83,6 @@ It wraps its children in a \<form\> element, which handles the submit event.
 When the form is submitted, it prevents the default form submission behavior and if the form is valid, calls the submit function from the provided context.
 
 ### Example
-Here's an example of how to use the Form component:
 ```tsx
 import { createForm, Form, useField } from '@gapu/formix';
 import { z } from 'zod';
@@ -114,12 +113,14 @@ const MyForm = () => {
 
 const NameField = () => {
   const field = useField<string>('name');
-  // Field implementation...
+  
+  ...
 };
 
 const EmailField = () => {
   const field = useField<string>('email');
-  // Field implementation...
+
+  ...
 };
 ```
 ### Key Points
@@ -130,4 +131,79 @@ The Form component renders a regular \<form\> element and handles the onSubmit e
 Child components can access the form context using hooks like `useForm`, `useField` or `useArrayField`.
 
 By using the Form component, you ensure that all parts of your form have access to the shared form context, allowing for seamless integration of form state, validation, and submission handling throughout your form's component tree.
+
+## useField Hook
+The `useField` hook provides a way to interact with individual form fields within a Form context.
+
+### Purpose
+The useField hook allows you to:  
+* Access and modify the value of a specific field in your form
+* Handle field-specific metadata (like touched, dirty, disabled states)
+* Access field-specific validation errors
+* Perform field-specific actions like resetting or checking if the field was modified
+
+### Usage
+```tsx
+import { useField } from '@gapu/formix';
+
+const MyFormField = () => {
+    const field = useField<string>('fieldName');
+    
+    ...
+};
+```
+### Parameters
+The useField hook takes one parameter:
+
+* `path`: A string representing the path to the field in your form state. For nested objects and arrays, use dot notation (e.g. 'user.name', 'contacts.1')
+
+### Return Value
+useField returns an object with the following properties and methods:
+
+* `value`: A function that returns the current value of the field.
+* `setValue`: A function to update the value of the field.
+* `meta`: A function that returns the current metadata state of the field.
+* `setMeta`: A function to update the metadata state of the field.
+* `errors`: A function that returns an array of current validation errors for the field.
+* `status`: A function that returns the current status of the field (isSettingValue, isSettingMeta).
+* `reset`: A function to reset the field to its initial value.
+* `wasModified`: A function that returns whether the field has been modified from its initial value.
+* `isRequired`: A function that returns whether the field is required based on the form schema.
+
+### Example
+```tsx
+import { useField } from '@gapu/formix';
+
+const EmailField = () => {
+  const field = useField<string>('email');
+  
+  return (
+    <div>
+      <label>Email:</label>
+      <input
+        value={field.value()}
+        onInput={(e) => field.setValue(e.currentTarget.value)}
+        onFocus={() => field.setMeta(prev => ({ ...prev, touched: true }))}
+        disabled={field.meta().disabled}
+      />
+      <For each={field.errors()}>
+        {(error) => (
+          <p class="error">{error.message}</p>
+        )}
+      </For>
+      {field.wasModified() && <span>Field was modified</span>}
+      <button onClick={() => field.reset()}>Reset</button>
+    </div>
+  );
+};
+```
+### Key Points
+
+`useField` must be used within a component that is a child of a Form component.
+The hook provides a comprehensive API for interacting with a single form field.
+It handles both the value of the field and its metadata (like disabled state).
+It provides access to field-specific validation errors.
+The hook is generic, allowing you to specify the type of the field value for better type safety.
+
+By using the useField hook, you can create reusable, type-safe form field components that are automatically connected to your form's state and validation logic.
 

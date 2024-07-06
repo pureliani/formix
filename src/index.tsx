@@ -19,6 +19,7 @@ import {
   set,
   type NullOrOptional,
 } from "./helpers";
+import { For } from "solid-js/web";
 
 export type { NullOrOptional }
 export type Update<T, R = T> = R | ((prev: T) => R) | ((prev: T) => Promise<R>);
