@@ -108,40 +108,43 @@ export function get<T = any>(obj: any, path: string): T | undefined {
   return result?.[lastKey];
 }
 
-export function set<T>(obj: T, path: string, value: any): T {
-  if (typeof obj !== "object" || obj === null) {
+export function set(obj: any, path: string, value: any): any {
+  if (typeof obj !== 'object' || obj === null) {
     return obj;
   }
 
-  if (path === "" || path === ".") {
+  if (path === '' || path === '.') {
     return obj;
   }
 
-  const keys = path.split(".");
-  const result = { ...obj };
-  let current: any = result;
+  const segments = path.split('.');
 
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i]?.trim();
-    if (key === undefined || key === "") {
-      throw new Error(
-        `@gapu/formix: failed to update nested property, empty segment at index ${i}`,
-      );
-    }
-
-    if (i === keys.length - 1) {
-      current[key] = value;
-    } else {
-      if (!(key in current)) {
-        current[key] = /^\d+$/.test(keys[i + 1] || "") ? [] : {};
-      } else {
-        current[key] = Array.isArray(current[key])
-          ? [...current[key]]
-          : { ...current[key] };
-      }
-      current = current[key];
-    }
+  if (segments.some(segment => segment === '')) {
+    const index = segments.findIndex(segment => segment === '');
+    throw new Error(`@gapu/formix: failed to update nested property, empty segment at index ${index}`);
   }
+
+  const result = Array.isArray(obj) ? [...obj] : { ...obj };
+  let current = result;
+
+  for (let i = 0; i < segments.length - 1; i++) {
+    const segment = segments[i];
+    const nextSegment = segments[i + 1];
+
+    if (!(segment in current)) {
+      current[segment] = isNaN(Number(nextSegment)) ? {} : [];
+    } else if (typeof current[segment] !== 'object') {
+      current[segment] = {};
+    }
+
+    current = current[segment];
+  }
+
+  const lastSegment = segments[segments.length - 1];
+  if (Array.isArray(current) && isNaN(Number(lastSegment))) {
+    throw new Error(`@gapu/formix: cannot use non-numeric index on array`);
+  }
+  current[lastSegment] = value;
 
   return result;
 }

@@ -223,6 +223,43 @@ describe("set", () => {
     expect(() => set(obj, "c", 3)).not.toThrow();
     expect(() => set(obj, "d.1", 3)).not.toThrow();
   });
+
+  it("should set a value in a root array", () => {
+    const arr = [1, 2, 3];
+    const result = set(arr, "1", 4);
+    expect(result).toEqual([1, 4, 3]);
+    expect(arr).toEqual([1, 2, 3]);
+  });
+
+  it("should add a value to a root array", () => {
+    const arr = [1, 2, 3];
+    const result = set(arr, "3", 4);
+    expect(result).toEqual([1, 2, 3, 4]);
+  });
+
+  it("should create nested objects in a root array", () => {
+    const arr = [1, 2, 3];
+    const result = set(arr, "3.a.b", 4);
+    expect(result).toEqual([1, 2, 3, { a: { b: 4 } }]);
+  });
+
+  it("should update nested values in a root array", () => {
+    const arr = [1, { a: 2 }, 3];
+    const result = set(arr, "1.a", 4);
+    expect(result).toEqual([1, { a: 4 }, 3]);
+  });
+
+  it("should handle out-of-bounds indices in a root array", () => {
+    const arr = [1, 2, 3];
+    const result = set(arr, "5", 4);
+    expect(result).toEqual([1, 2, 3, undefined, undefined, 4]);
+  });
+
+  it("should create a nested array in a root array", () => {
+    const arr = [1, 2, 3];
+    const result = set(arr, "3.0", 4);
+    expect(result).toEqual([1, 2, 3, [4]]);
+  });
 });
 
 describe("createUndoRedoManager", () => {
