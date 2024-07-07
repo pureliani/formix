@@ -2,6 +2,26 @@
 
 @gapu/formix is a powerful form management library for SolidJS. It provides a simple and flexible API for handling complex form state, validation, and submission.
 
+# Installation
+
+To use @gapu/formix in your project, you need to install both @gapu/formix and [Zod](https://zod.dev/). @gapu/formix relies on Zod for schema validation.
+
+```bash
+# Using npm
+npm install @gapu/formix zod
+
+# Using yarn
+yarn add @gapu/formix zod
+
+# Using pnpm
+pnpm add @gapu/formix zod
+
+# Using bun
+bun add @gapu/formix zod
+```
+
+Now you're ready to start using @gapu/formix in your SolidJS project!
+
 ### Table of contents
 - [Form initialization](#form-initialization)
   - [Parameters](#parameters)
