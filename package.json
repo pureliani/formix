@@ -1,6 +1,6 @@
 {
   "name": "@gapu/formix",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scripts": {
     "build": "tsup ./src/index.tsx --dts",
     "build:w": "tsup ./src/index.tsx --dts --watch",
@@ -8,7 +8,9 @@
     "test:w": "vitest watch",
     "test:c": "vitest run --coverage"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "module": "dist/index.js",
   "type": "module",
   "types": "dist/index.d.ts",

@@ -1,11 +1,12 @@
 # @gapu/formix
 
-### @gapu/formix is a powerful form management library for SolidJS. It provides a simple and flexible API for handling form state, validation, and submission.
+@gapu/formix is a powerful form management library for SolidJS. It provides a simple and flexible API for handling complex form state, validation, and submission.
 
-## Table of contents
-- [Getting Started: createForm](#getting-started)
+### Table of contents
+- [Form initialization](#form-initialization)
   - [Parameters](#parameters)
   - [Return Value:](#return-value)
+  - [Example usage](#example-usage)
 - [Form Component](#form-component)
   - [Usage](#usage)
   - [Parameters](#parameters-1)
@@ -34,7 +35,7 @@
   - [Key Points](#key-points-3)
   - [Advanced Usage](#advanced-usage)
 
-## Getting Started
+## Form initialization
 The `createForm` function is the entry point for creating and managing your form with the specified schema, initial state, and submission handler.  
 
 ```tsx
@@ -73,8 +74,15 @@ const formContext = createForm({
 * `isFieldRequired`: A function to check if a field is required, given its path and optional variant.
 * `state`: A signal containing the current form state.
 * `setState`: A function to update the form state.
-* `formStatus`: A signal containing the current status of the form (initializing, submitting, validating, etc.).
+* `formStatus`: A signal containing the current status of the form:
+  * `initializing`: Whether the form is currently initializing.
+  * `submitting`: Whether the form is currently being submitted.
+  * `validating`: Whether the form is currently being validated.
+  * `settingState`: Whether the form state is currently being updated.
+  * `settingMeta`: Whether field metadata is currently being updated.
 * `fieldStatuses`: A signal containing the status of individual fields.
+  * `isSettingValue`: Whether the field's value is currently being updated asynchronously.
+  * `isSettingMeta`: Whether the field's metadata is currently being updated asynchronously.
 * `fieldMetas`: A signal containing metadata for all fields.
 * `setFieldMetas`: A function to update metadata for all fields.
 * `errors`: A signal containing any current validation errors.
@@ -87,6 +95,39 @@ const formContext = createForm({
 * `wasModified`: A function that returns whether the form state has been modified from its initial state.
 * `setFieldMeta`: A function to update metadata for a specific field.
 * `setFieldValue`: A function to update the value of a specific field.
+
+### Example usage
+```ts
+const formContext = createForm({
+  schema: ...,
+  initialState: ...,
+  onSubmit: ...,
+  undoLimit: ... // (optional)
+});
+
+// Access current form state
+const currentState = formContext.state();
+
+// Update form state
+await formContext.setState(newState);
+
+// Check if form is currently submitting
+const isSubmitting = formContext.formStatus().submitting;
+
+// Get all current form errors
+const formErrors = formContext.errors();
+
+// Undo last change
+if (formContext.canUndo()) {
+  await formContext.undo();
+}
+
+// Check if a specific field is required
+const isNameRequired = formContext.isFieldRequired('name');
+
+// Update a specific field's value
+await formContext.setFieldValue('email', 'new@example.com');
+```
 
 ## Form Component
 The `Form` component is a crucial part of this library. Its primary purpose is to serve as a context provider, making the form context available to all descendant components.
