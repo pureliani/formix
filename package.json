@@ -1,6 +1,6 @@
 {
   "name": "@gapu/formix",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "scripts": {
     "build": "tsup ./src/index.tsx --dts",
     "build:w": "tsup ./src/index.tsx --dts --watch",
