@@ -2,6 +2,38 @@
 
 ### @gapu/formix is a powerful form management library for SolidJS. It provides a simple and flexible API for handling form state, validation, and submission.
 
+## Table of contents
+- [Getting Started: createForm](#getting-started)
+  - [Parameters](#parameters)
+  - [Return Value:](#return-value)
+- [Form Component](#form-component)
+  - [Usage](#usage)
+  - [Parameters](#parameters-1)
+  - [How it works](#how-it-works)
+  - [Example](#example)
+  - [Key Points](#key-points)
+- [useForm Hook](#useform-hook)
+  - [Purpose](#purpose)
+  - [Usage](#usage-1)
+  - [Return Value](#return-value-1)
+  - [Example](#example-1)
+  - [Key Points](#key-points-1)
+- [useField Hook](#usefield-hook)
+  - [Purpose](#purpose-1)
+  - [Usage](#usage-2)
+  - [Parameters](#parameters-2)
+  - [Return Value](#return-value-2)
+  - [Example](#example-2)
+  - [Key Points](#key-points-2)
+- [useArrayField Hook](#usearrayfield-hook)
+  - [Purpose](#purpose-2)
+  - [Usage](#usage-3)
+  - [Parameters](#parameters-3)
+  - [Return Value](#return-value-3)
+  - [Example](#example-3)
+  - [Key Points](#key-points-3)
+  - [Advanced Usage](#advanced-usage)
+
 ## Getting Started
 The `createForm` function is the entry point for creating and managing your form with the specified schema, initial state, and submission handler.  
 
@@ -130,6 +162,88 @@ The `Form` component renders a regular \<form\> element and handles the onSubmit
 Child components can access the form context using hooks like `useForm`, `useField` or `useArrayField`.
 
 By using the `Form` component, you ensure that all parts of your form have access to the shared form context, allowing for seamless integration of form state, validation, and submission handling throughout your form's component tree.
+
+## useForm Hook
+The `useForm` hook provides access to the entire form context within any component that is a child of a Form component.
+
+### Purpose
+The `useForm` hook allows you to:
+
+* Access and modify the entire form state
+* Handle form-wide operations like submission, reset, and validation
+* Access form-wide metadata and status information
+* Perform undo and redo operations on the form state
+
+### Usage
+```tsx
+import { useForm } from '@gapu/formix';
+
+const MyFormComponent = () => {
+    const form = useForm<MyFormState>();
+    
+    ...
+};
+```
+
+### Return Value
+`useForm` returns the form context object with the following properties and methods:
+
+* `initialState`: A function that returns the initial state of the form.
+* `formSchema`: A function that returns the Zod schema used for form validation.
+* `isFieldRequired`: A function to check if a field is required, given its path and optional variant.
+* `state`: A signal containing the current form state.
+* `setState`: A function to update the form state.
+* `formStatus`: A signal containing the current status of the form (initializing, submitting, validating, etc.).
+* `fieldStatuses`: A signal containing the status of individual fields.
+* `fieldMetas`: A signal containing metadata for all fields.
+* `setFieldMetas`: A function to update metadata for all fields.
+* `errors`: A signal containing any current validation errors.
+* `reset`: A function to reset the form to its initial state.
+* `submit`: A function to trigger form submission.
+* `undo`: A function to undo the last change in the form state.
+* `redo`: A function to redo the last undone change in the form state.
+* `canUndo`: A function that returns whether an undo operation is possible.
+* `canRedo`: A function that returns whether a redo operation is possible.
+* `wasModified`: A function that returns whether the form state has been modified from its initial state.
+* `setFieldMeta`: A function to update metadata for a specific field.
+* `setFieldValue`: A function to update the value of a specific field.
+
+### Example
+```tsx
+import { useForm } from '@gapu/formix';
+
+const FormSummary = () => {
+  const form = useForm();
+  
+  return (
+    <div>
+      <h3>Form Summary</h3>
+      <p>Modified: {form.wasModified() ? 'Yes' : 'No'}</p>
+      <p>Can Undo: {form.canUndo() ? 'Yes' : 'No'}</p>
+      <p>Can Redo: {form.canRedo() ? 'Yes' : 'No'}</p>
+      <button onClick={form.reset} disabled={!form.wasModified()}>
+        Reset Form
+      </button>
+      <button onClick={form.undo} disabled={!form.canUndo()}>
+        Undo
+      </button>
+      <button onClick={form.redo} disabled={!form.canRedo()}>
+        Redo
+      </button>
+      <button onClick={form.submit}>Submit</button>
+    </div>
+  );
+};
+```
+
+### Key Points
+
+`useForm` must be used within a component that is a child of a `Form` component.
+It provides access to the entire form context, allowing for form-wide operations and state management.
+The hook is generic, allowing you to specify the type of the form state for better type safety.
+It's particularly useful for creating components that need to interact with the overall form state or perform form-wide actions.
+
+By using the `useForm` hook, you can create components that have full access to the form's state and functionality, enabling you to build complex form interactions and custom form controls.
 
 ## useField Hook
 The `useField` hook provides a way to interact with individual form fields within a `Form` context.
