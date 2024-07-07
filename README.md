@@ -4,7 +4,7 @@
 
 # Installation
 
-To use @gapu/formix in your project, you need to install both @gapu/formix and [Zod](https://zod.dev/). @gapu/formix relies on Zod for schema validation.
+To use @gapu/formix in your project, you need to install both @gapu/formix and [Zod](https://zod.dev/) for schema validation.
 
 ```bash
 # Using npm
@@ -217,10 +217,10 @@ const EmailField = () => {
 ```
 ### Key Points
 
-The `Form` component is essentially a context provider. It doesn't directly handle form state or validation itself.
-All components and hooks from @gapu/formix (such as `useField`) must be used within a `Form` component to access the form context.
-The `Form` component renders a regular \<form\> element and handles the onSubmit event internally.
-Child components can access the form context using hooks like `useForm`, `useField` or `useArrayField`.
+* The `Form` component is essentially a context provider. It doesn't directly handle form state or validation itself.
+* All components and hooks from @gapu/formix (such as `useField`) must be used within a `Form` component to access the form context.
+* The `Form` component renders a regular \<form\> element and handles the onSubmit event internally.
+* Child components can access the form context using hooks like `useForm`, `useField` or `useArrayField`.
 
 By using the `Form` component, you ensure that all parts of your form have access to the shared form context, allowing for seamless integration of form state, validation, and submission handling throughout your form's component tree.
 
@@ -299,10 +299,10 @@ const FormSummary = () => {
 
 ### Key Points
 
-`useForm` must be used within a component that is a child of a `Form` component.
-It provides access to the entire form context, allowing for form-wide operations and state management.
-The hook is generic, allowing you to specify the type of the form state for better type safety.
-It's particularly useful for creating components that need to interact with the overall form state or perform form-wide actions.
+* `useForm` must be used within a component that is a child of a `Form` component.
+* It provides access to the entire form context, allowing for form-wide operations and state management.
+* The hook is generic, allowing you to specify the type of the form state for better type safety.
+* It's particularly useful for creating components that need to interact with the overall form state or perform form-wide actions.
 
 By using the `useForm` hook, you can create components that have full access to the form's state and functionality, enabling you to build complex form interactions and custom form controls.
 
@@ -336,10 +336,18 @@ The `useField` hook takes one parameter:
 
 * `value`: A function that returns the current value of the field.
 * `setValue`: A function to update the value of the field.
-* `meta`: A function that returns the current metadata state of the field.
+* `meta`: A function that returns the current metadata state of the field. The metadata includes:
+  * `touched`: A boolean indicating whether the field has been interacted with.
+  * `dirty`: A boolean indicating whether the field's value has changed from its initial value.
+  * `loading`: A boolean indicating whether the field is in a loading state.
+  * `disabled`: A boolean indicating whether the field is currently disabled.
+  * `readOnly`: A boolean indicating whether the field is in a read-only state.
+  * `show`: A boolean indicating whether the field should be displayed.
 * `setMeta`: A function to update the metadata state of the field.
 * `errors`: A function that returns an array of current validation errors for the field.
-* `status`: A function that returns the current status of the field (isSettingValue, isSettingMeta).
+* `status`: A function that returns the current status of the field. The status includes:
+  * `isSettingValue`: A boolean indicating whether the field's value is currently being updated asynchronously.
+  * `isSettingMeta`: A boolean indicating whether the field's metadata is currently being updated asynchronously.
 * `reset`: A function to reset the field to its initial value.
 * `wasModified`: A function that returns whether the field has been modified from its initial value.
 * `isRequired`: A function that returns whether the field is required based on the form schema.
@@ -366,6 +374,7 @@ const EmailField = () => {
           <p class="error">{error().message}</p>
         )}
       </Index>
+      {field.status().isSettingValue && <span>Updating...</span>}
       {field.wasModified() && <span>Field was modified</span>}
       <button onClick={() => field.reset()}>Reset</button>
     </div>
@@ -374,11 +383,14 @@ const EmailField = () => {
 ```
 ### Key Points
 
-`useField` must be used within a component that is a child of a `Form` component.
-This hook provides a comprehensive API for interacting with a single form field.
-It handles both the value of the field and its metadata (like disabled state).
-It provides access to field-specific validation errors.
-The hook is generic, allowing you to specify the type of the field value for better type safety.
+* `useField` must be used within a component that is a child of a `Form` component.
+* This hook provides a comprehensive API for interacting with a single form field.
+* It handles both the value of the field and its metadata (like disabled state).
+* It provides access to field-specific validation errors.
+* The hook is generic, allowing you to specify the type of the field value for better type safety.
+* The meta function provides access to various metadata about the field's state, such as whether it has been touched, is dirty, or is disabled.
+* The status function gives information about ongoing asynchronous operations on the field, which can be useful for showing loading indicators.
+* The status properties are typically managed internally by the form library and should be used for display purposes rather than being set manually.
 
 By using the `useField` hook, you can create reusable, type-safe form field components that are automatically connected to your form's state and validation logic.
 
@@ -456,11 +468,11 @@ const HobbiesField = () => {
 
 ### Key Points
 
-`useArrayField` must be used within a component that is a child of a `Form` component.
-It provides all the functionality of `useField`, plus additional methods for array manipulation.
-The hook is generic, allowing you to specify the type of the array items for better type safety.
-Array operations (`push`, `remove`, `move`, etc.) automatically trigger form state updates and validation.
-You can use the base field methods (`setValue`, `setMeta`, etc.) to manipulate the entire array at once.
+* `useArrayField` must be used within a component that is a child of a `Form` component.
+* It provides all the functionality of `useField`, plus additional methods for array manipulation.
+* The hook is generic, allowing you to specify the type of the array items for better type safety.
+* Array operations (`push`, `remove`, `move`, etc.) automatically trigger form state updates and validation.
+* You can use the base field methods (`setValue`, `setMeta`, etc.) to manipulate the entire array at once.
 
 ### Advanced Usage
 `useArrayField` allows for complex array manipulations:
