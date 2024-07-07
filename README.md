@@ -327,6 +327,7 @@ The `useField` hook takes one parameter:
 ### Example
 ```tsx
 import { useField } from '@gapu/formix';
+import { Index } from 'solid-js';
 
 const EmailField = () => {
   const field = useField<string>('email');
@@ -340,11 +341,11 @@ const EmailField = () => {
         onFocus={() => field.setMeta(prev => ({ ...prev, touched: true }))}
         disabled={field.meta().disabled}
       />
-      <For each={field.errors()}>
+      <Index each={hobbies.errors()}>
         {(error) => (
-          <p class="error">{error.message}</p>
+          <p class="error">{error().message}</p>
         )}
-      </For>
+      </Index>
       {field.wasModified() && <span>Field was modified</span>}
       <button onClick={() => field.reset()}>Reset</button>
     </div>
