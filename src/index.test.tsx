@@ -1,8 +1,134 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@solidjs/testing-library";
+import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 import { createRoot } from "solid-js"
 import { createForm, Form, defaultFieldMetaState, type FormixError, useForm, useField, useArrayField } from ".";
 import { z } from "zod";
+
+describe("Form Initialization", () => {
+  const schema = z.object({
+    name: z.string().min(3),
+    age: z.number().min(18),
+  });
+
+  type FormState = z.infer<typeof schema>;
+
+  const initialState: FormState = {
+    name: "",
+    age: 0,
+  };
+
+  it("should initialize with synchronous initial state", async () => {
+    const form = createForm({
+      schema,
+      initialState,
+      onSubmit: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(form.state()).toEqual(initialState);
+      expect(form.initialState()).toEqual(initialState);
+    })
+  });
+
+  it("should initialize with asynchronous initial state", async () => {
+    const asyncInitialState = async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      return { name: "John Doe", age: 30 };
+    };
+
+    const form = createForm({
+      schema,
+      initialState: asyncInitialState,
+      onSubmit: vi.fn(),
+    });
+
+    expect(form.state()).toBeNull();
+
+    await waitFor(() => {
+      expect(form.state()).toEqual({ name: "John Doe", age: 30 });
+      expect(form.initialState()).toEqual({ name: "John Doe", age: 30 });
+    })
+  });
+
+  it("should validate initial state", async () => {
+    const invalidInitialState = {
+      name: "Jo",
+      age: 16,
+    };
+
+    const form = createForm({
+      schema,
+      initialState: invalidInitialState,
+      onSubmit: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(form.errors()).toHaveLength(2);
+      expect(form.errors()[0]?.path).toBe("name");
+      expect(form.errors()[1]?.path).toBe("age");
+    })
+  });
+
+  it("should initialize nested object schemas", async () => {
+    const nestedSchema = z.object({
+      user: z.object({
+        name: z.string().min(3),
+        email: z.string().email(),
+      }),
+      settings: z.object({
+        notifications: z.boolean(),
+      }),
+    });
+
+    const nestedInitialState = {
+      user: {
+        name: "John Doe",
+        email: "john@example.com",
+      },
+      settings: {
+        notifications: true,
+      },
+    };
+
+    const form = createForm({
+      schema: nestedSchema,
+      initialState: nestedInitialState,
+      onSubmit: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(form.state()).toEqual(nestedInitialState);
+    })
+  });
+
+  it("should initialize array fields", async () => {
+    const arraySchema = z.object({
+      tags: z.array(z.string()),
+      users: z.array(z.object({
+        name: z.string(),
+        age: z.number(),
+      })),
+    });
+
+    const arrayInitialState = {
+      tags: ["react", "typescript"],
+      users: [
+        { name: "John", age: 30 },
+        { name: "Jane", age: 28 },
+      ],
+    };
+
+    const form = createForm({
+      schema: arraySchema,
+      initialState: arrayInitialState,
+      onSubmit: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(form.state()).toEqual(arrayInitialState);
+    })
+  });
+});
 
 describe("createForm", () => {
   const schema = z.object({
@@ -179,9 +305,9 @@ describe("createForm", () => {
       onSubmit: vi.fn(),
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(asyncForm.state()).toEqual({ name: "Async", age: 30 });
+    await waitFor(() => {
+      expect(asyncForm.state()).toEqual({ name: "Async", age: 30 });
+    })
   });
 
   it("should handle async onSubmit", async () => {
@@ -285,8 +411,9 @@ describe('Form Component', () => {
     ));
 
     const submitButton = getByText('Submit');
-    await fireEvent.click(submitButton);
-    setTimeout(() => {
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
     })
   });
@@ -338,7 +465,14 @@ describe('useField Hook', () => {
         <span data-testid="value">{JSON.stringify(field.value())}</span>
         <span data-testid="errors">{JSON.stringify(field.errors())}</span>
         <span data-testid="meta">{JSON.stringify(field.meta())}</span>
+        <span data-testid="status">{JSON.stringify(field.status())}</span>
         <button onClick={() => field.setValue('New Value')}>Set Value</button>
+        <button onClick={() => {
+          field.setValue(async () => {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            return 'Async New Value'
+          });
+        }}>Set Async Value</button>
         <button onClick={() => field.setMeta(prev => ({ ...prev, touched: true }))}>Set Meta</button>
         <button onClick={() => field.reset()}>Reset</button>
       </div>
@@ -354,9 +488,9 @@ describe('useField Hook', () => {
     ));
   }
 
-  it('returns correct initial value', () => {
+  it('returns correct initial value', async () => {
     const { getByTestId } = setup('name');
-    setTimeout(() => {
+    await waitFor(() => {
       expect(getByTestId('value').textContent).toBe('"John Doe"');
     })
   });
@@ -364,18 +498,20 @@ describe('useField Hook', () => {
   it('updates value correctly', async () => {
     const { getByTestId, getByText } = setup('name');
     fireEvent.click(getByText('Set Value'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(getByTestId('value').textContent).toBe('"New Value"');
     })
   });
 
   it('updates meta correctly', async () => {
     const { getByTestId, getByText } = setup('name');
+
     fireEvent.click(getByText('Set Meta'));
-    const meta = JSON.parse(getByTestId('meta').textContent || '{}');
-    setTimeout(() => {
+
+    await waitFor(() => {
+      const meta = JSON.parse(getByTestId('meta').textContent || '{}');
       expect(meta.touched).toBe(true);
-    }, 100)
+    });
   });
 
   it('resets field to initial value', async () => {
@@ -385,7 +521,7 @@ describe('useField Hook', () => {
     expect(getByTestId('value').textContent).toBe('"John Doe"');
   });
 
-  it('handles errors correctly', () => {
+  it('handles errors correctly', async () => {
     const context = createForm({
       schema,
       initialState: { ...initialState, age: 'invalid' as any },
@@ -398,11 +534,11 @@ describe('useField Hook', () => {
       </Form>
     ));
 
-    const errors = JSON.parse(getByTestId('errors').textContent || '[]');
-    setTimeout(() => {
+    await waitFor(() => {
+      const errors = JSON.parse(getByTestId('errors').textContent || '[]');
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0].message).toContain('Expected number');
-    }, 100)
+    });
   });
 
   it('returns correct isRequired value', () => {
@@ -451,8 +587,51 @@ describe('useField Hook', () => {
 
     fireEvent.click(getByText('Modify'));
 
-    setTimeout(() => {
+    await waitFor(() => {
       expect(wasModifiedResult).toBe(true);
+    })
+  });
+
+  it('returns correct initial status', () => {
+    const { getByTestId } = setup('name');
+    const status = JSON.parse(getByTestId('status').textContent || '{}');
+    expect(status).toEqual({
+      isSettingMeta: false,
+      isSettingValue: false,
+    });
+  });
+
+  it('updates status when setting value asynchronously', async () => {
+    const { getByTestId, getByText } = setup('name');
+
+    const getStatus = () => JSON.parse(getByTestId('status').textContent || '{}');
+    const getValue = () => JSON.parse(getByTestId('value').textContent || '""');
+
+    expect(getStatus().isSettingValue).toBe(false);
+
+    fireEvent.click(getByText('Set Async Value'));
+
+    await waitFor(() => {
+      expect(getStatus().isSettingValue).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(getStatus().isSettingValue).toBe(false);
+      expect(getValue()).toBe('Async New Value');
+    });
+  });
+
+  it('updates status when setting meta', async () => {
+    const { getByTestId, getByText } = setup('name');
+
+    const getStatus = () => JSON.parse(getByTestId('status').textContent || '{}');
+    expect(getStatus().isSettingMeta).toBe(false);
+
+    fireEvent.click(getByText('Set Meta'));
+    expect(getStatus().isSettingMeta).toBe(true);
+
+    await waitFor(() => {
+      expect(getStatus().isSettingMeta).toBe(false);
     })
   });
 });
@@ -493,9 +672,9 @@ describe('useArrayField Hook', () => {
     ));
   }
 
-  it('initializes with correct value', () => {
+  it('initializes with correct value', async () => {
     const { getByTestId } = setup();
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3']);
     });
   });
@@ -503,7 +682,7 @@ describe('useArrayField Hook', () => {
   it('pushes new item correctly', async () => {
     const { getByTestId, getByText } = setup();
     fireEvent.click(getByText('Push'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3', 'newItem']);
     });
   });
@@ -511,7 +690,7 @@ describe('useArrayField Hook', () => {
   it('removes item correctly', async () => {
     const { getByTestId, getByText } = setup();
     fireEvent.click(getByText('Remove'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item3']);
     });
   });
@@ -519,7 +698,7 @@ describe('useArrayField Hook', () => {
   it('moves item correctly', async () => {
     const { getByTestId, getByText } = setup();
     fireEvent.click(getByText('Move'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item2', 'item3', 'item1']);
     });
   });
@@ -527,7 +706,7 @@ describe('useArrayField Hook', () => {
   it('inserts item correctly', async () => {
     const { getByTestId, getByText } = setup();
     await fireEvent.click(getByText('Insert'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'insertedItem', 'item2', 'item3']);
     });
   });
@@ -535,7 +714,7 @@ describe('useArrayField Hook', () => {
   it('replaces item correctly', async () => {
     const { getByTestId, getByText } = setup();
     fireEvent.click(getByText('Replace'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['replacedItem', 'item2', 'item3']);
     });
   });
@@ -543,7 +722,7 @@ describe('useArrayField Hook', () => {
   it('empties array correctly', async () => {
     const { getByTestId, getByText } = setup();
     fireEvent.click(getByText('Empty'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual([]);
     });
   });
@@ -551,7 +730,7 @@ describe('useArrayField Hook', () => {
   it('swaps items correctly', async () => {
     const { getByTestId, getByText } = setup();
     fireEvent.click(getByText('Swap'));
-    setTimeout(() => {
+    await waitFor(() => {
       expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item3', 'item2', 'item1']);
     });
   });
