@@ -254,8 +254,15 @@ const MyFormComponent = () => {
 * `isFieldRequired`: A function to check if a field is required, given its path and optional variant.
 * `state`: A signal containing the current form state.
 * `setState`: A function to update the form state.
-* `formStatus`: A signal containing the current status of the form (initializing, submitting, validating, etc.).
+* `formStatus`: A signal containing the current status of the form:
+  * `initializing`: Whether the form is currently initializing.
+  * `submitting`: Whether the form is currently being submitted.
+  * `validating`: Whether the form is currently being validated.
+  * `settingState`: Whether the form state is currently being updated.
+  * `settingMeta`: Whether field metadata is currently being updated.
 * `fieldStatuses`: A signal containing the status of individual fields.
+  * `isSettingValue`: Whether the field's value is currently being updated asynchronously.
+  * `isSettingMeta`: Whether the field's metadata is currently being updated asynchronously.
 * `fieldMetas`: A signal containing metadata for all fields.
 * `setFieldMetas`: A function to update metadata for all fields.
 * `errors`: A signal containing any current validation errors.
