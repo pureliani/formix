@@ -1,5 +1,5 @@
 import { type ZodIssue, type ZodTypeAny, ZodObject, ZodArray, ZodOptional, ZodNullable } from "zod";
-import type { FormixError, Initializer, Update } from ".";
+import type { FormixError, Update } from ".";
 
 export function isEqual(a: any, b: any): boolean {
   if (a === b) return true;
@@ -158,23 +158,11 @@ export function set(obj: any, path: string, value: any): any {
   return result;
 }
 
-export async function getUpdatedValue<T, R>(
+export function getUpdatedValue<T, R>(
   prev: T,
   update: Update<T, R>,
-): Promise<R> {
-  if (update instanceof Function) {
-    const result = update(prev);
-    return result instanceof Promise ? await result : result;
-  }
-  return update;
-}
-
-export async function getInitialValue<T>(init: Initializer<T>): Promise<T> {
-  if (init instanceof Function) {
-    const result = init();
-    return result instanceof Promise ? await result : result;
-  }
-  return init;
+): R {
+  return update instanceof Function ? update(prev) : update;
 }
 
 export const formatZodIssues = (errors: ZodIssue[]): FormixError[] => {

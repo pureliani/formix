@@ -12,7 +12,6 @@ import {
   createUndoRedoManager,
   formatZodIssues,
   get,
-  getInitialValue,
   getUpdatedValue,
   isEqual,
   isFieldRequired as _isFieldRequired,
@@ -21,9 +20,8 @@ import {
 } from "./helpers";
 
 export type { NullOrOptional }
-export type Update<T, R = T> = R | ((prev: T) => R) | ((prev: T) => Promise<R>);
+export type Update<T, R = T> = R | ((prev: T) => R);
 export type SyncUpdate<T, R = T> = R | ((prev: T) => R);
-export type Initializer<T> = T | (() => T) | (() => Promise<T>);
 
 export type FieldMetaState = Readonly<{
   touched: boolean;
@@ -50,13 +48,12 @@ export type FieldStatus = Readonly<{
 
 export type FieldContext<T> = Readonly<{
   value: () => T;
-  setValue: (update: Update<T>) => Promise<void>;
+  setValue: (update: Update<T>) => void;
   meta: () => FieldMetaState;
-  setMeta: (update: Update<FieldMetaState>) => Promise<void>;
+  setMeta: (update: Update<FieldMetaState>) => void;
   isRequired: (variant?: NullOrOptional[]) => boolean,
   errors: () => FormixError[];
-  status: () => FieldStatus;
-  reset: () => Promise<void>;
+  reset: () => void;
   wasModified: () => boolean;
 }>;
 
@@ -74,22 +71,22 @@ export type FormStatus = Readonly<{
 }>;
 
 export type FormContextProps<State> = Readonly<{
-  initialState: () => Readonly<State | null>;
-  state: () => Readonly<State | null>;
-  setState: (update: Update<State, State>) => Promise<void>;
+  initialState: Readonly<State>;
+  state: () => Readonly<State>;
+  setState: (update: Update<State>) => void;
   fieldMetas: () => Readonly<Record<string, FieldMetaState>>;
   isFieldRequired: (path: string, variant?: NullOrOptional[]) => boolean
-  formSchema: () => z.ZodTypeAny
-  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => Promise<void>;
-  setFieldMeta: (path: string, update: Update<FieldMetaState>) => Promise<void>;
-  setFieldValue: <FV>(path: string, update: Update<FV>) => Promise<void>;
+  formSchema: z.ZodTypeAny
+  setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => void;
+  setFieldMeta: (path: string, update: Update<FieldMetaState>) => void;
+  setFieldValue: <FV>(path: string, update: Update<FV>) => void;
   errors: () => Readonly<FormixError[]>;
-  reset: () => Promise<void>;
+  isValidating: () => boolean
+  isSubmitting: () => boolean
+  reset: () => void;
   submit: () => Promise<void>;
-  formStatus: () => Readonly<FormStatus>;
-  fieldStatuses: () => Readonly<Record<string, FieldStatus>>;
-  undo: (steps?: number) => Promise<void>;
-  redo: (steps?: number) => Promise<void>;
+  undo: (steps?: number) => void;
+  redo: (steps?: number) => void;
   canUndo: (steps?: number) => boolean;
   canRedo: (steps?: number) => boolean;
   wasModified: () => boolean;
@@ -102,7 +99,7 @@ export type CreateFormProps<
   State extends z.infer<Schema>,
 > = {
   schema: Schema;
-  initialState: Initializer<State>;
+  initialState: State;
   onSubmit: (state: State) => void | Promise<void>;
   undoLimit?: number;
 };
@@ -111,206 +108,114 @@ export function createForm<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>,
 >(props: CreateFormProps<Schema, State>): FormContextProps<State> {
-  const [state, setStateInternal] = createSignal<State | null>(null);
-  const [fieldMetas, setFieldMetasInternal] = createSignal<
+  const [state, setStateInternal] = createSignal(props.initialState);
+  const [fieldMetas, setFieldMetas] = createSignal<
     Record<string, FieldMetaState>
   >({});
-  const [undoRedoManager, setUndoRedoManager] = createSignal<
-    ReturnType<typeof createUndoRedoManager<State>> | undefined
-  >(undefined);
+  const undoRedoManager = createUndoRedoManager<State>(props.initialState, props.undoLimit)
+  const [isValidating, setIsValidating] = createSignal(false)
+  const [isSubmitting, setIsSubmitting] = createSignal(false)
   const [errors, setErrors] = createSignal<FormixError[]>([]);
 
-  const [formStatus, setFormStatus] = createSignal<FormStatus>({
-    initializing: false,
-    submitting: false,
-    validating: false,
-    settingState: false,
-    settingMeta: false,
-  });
-
-  const [fieldStatuses, setFieldStatuses] = createSignal<
-    Record<string, FieldStatus>
-  >({});
-
   const revalidate = async () => {
-    await initPromise;
-    setFormStatus((prev) => ({ ...prev, validating: true }));
+    setIsValidating(true)
     const validationResult = await props.schema.safeParseAsync(state());
-    setFormStatus((prev) => ({ ...prev, validating: false }));
+    setIsValidating(false)
     return validationResult;
   };
 
-  let initialState: State | null = null;
-  const initializeState = async () => {
-    setFormStatus((prev) => ({ ...prev, initializing: true }));
-    try {
-      const result = await getInitialValue(props.initialState);
-      initialState = result;
-      setStateInternal(result);
-      setUndoRedoManager(createUndoRedoManager<State>(result, props.undoLimit));
-
-      setFormStatus((prev) => ({ ...prev, validating: true }));
-      const validationResult = await props.schema.safeParseAsync(state());
-      setFormStatus((prev) => ({ ...prev, validating: false }));
-      if (!validationResult.success) {
-        setErrors(formatZodIssues(validationResult.error.issues));
-      } else {
-        setErrors([]);
-      }
-    } finally {
-      setFormStatus((prev) => ({ ...prev, initializing: false }));
+  revalidate().then((r) => {
+    if (!r.success) {
+      setErrors(formatZodIssues(r.error.issues));
+    } else {
+      setErrors([])
     }
-  };
-  const initPromise = initializeState();
+  })
 
   let setStateCalledByUndoRedoFn = false;
-  const setState = async (update: Update<State, State>) => {
-    try {
-      await initPromise;
-      setFormStatus((prev) => ({ ...prev, isSettingState: true }));
-      const next = await getUpdatedValue(state() as State, update);
-      setStateInternal(next);
-      if (!setStateCalledByUndoRedoFn) {
-        undoRedoManager()?.setState(next);
-      }
+  const setState = (update: Update<State>) => {
+    const next = getUpdatedValue(state(), update);
+    setStateInternal(next);
+    if (!setStateCalledByUndoRedoFn) {
+      undoRedoManager.setState(next);
+    }
 
-      const validationResult = await revalidate();
-      if (!validationResult.success) {
-        setErrors(formatZodIssues(validationResult.error.issues));
+    revalidate().then((r) => {
+      if (!r.success) {
+        setErrors(formatZodIssues(r.error.issues));
       } else {
-        setErrors([]);
+        setErrors([])
       }
-    } finally {
-      setFormStatus((prev) => ({ ...prev, isSettingState: false }));
-    }
+    })
   };
-
-  const setFieldMetas = async (
-    update: Update<Record<string, FieldMetaState>>,
-  ) => {
-    try {
-      setFormStatus((prev) => ({ ...prev, isSettingMeta: true }));
-      const next = await getUpdatedValue(fieldMetas(), update);
-      setFieldMetasInternal(next);
-    } finally {
-      setFormStatus((prev) => ({ ...prev, isSettingMeta: false }));
-    }
-  };
-
-  const _initialState = () => initialState;
 
   const submit = async () => {
     const validationResult = await revalidate();
     if (!validationResult.success) return;
 
     try {
-      setFormStatus((prev) => ({ ...prev, submitting: true }));
+      setIsSubmitting(true)
       await props.onSubmit(validationResult.data);
     } finally {
-      setFormStatus((prev) => ({ ...prev, submitting: false }));
+      setIsSubmitting(false)
     }
   };
 
-  const undo = async (steps = 1) => {
-    const manager = undoRedoManager();
-    if (manager) {
-      const previousState = manager.undo(steps);
-      try {
-        setStateCalledByUndoRedoFn = true;
-        await setState(previousState);
-      } finally {
-        setStateCalledByUndoRedoFn = false;
-      }
-    }
+  const undo = (steps = 1) => {
+    const previousState = undoRedoManager.undo(steps);
+    setStateCalledByUndoRedoFn = true;
+    setState(previousState);
+    setStateCalledByUndoRedoFn = false;
   };
 
-  const redo = async (steps = 1) => {
-    const manager = undoRedoManager();
-    if (manager) {
-      const nextState = manager.redo(steps);
-      try {
-        setStateCalledByUndoRedoFn = true;
-        await setState(nextState);
-      } finally {
-        setStateCalledByUndoRedoFn = false;
-      }
-    }
+  const redo = (steps = 1) => {
+    const nextState = undoRedoManager.redo(steps);
+    setStateCalledByUndoRedoFn = true;
+    setState(nextState);
+    setStateCalledByUndoRedoFn = false;
   };
 
-  const canUndo = (steps = 1) => undoRedoManager()?.canUndo(steps) ?? false;
-  const canRedo = (steps = 1) => undoRedoManager()?.canRedo(steps) ?? false;
+  const canUndo = (steps = 1) => undoRedoManager.canUndo(steps) ?? false;
+  const canRedo = (steps = 1) => undoRedoManager.canRedo(steps) ?? false;
 
-  const reset = async () => {
-    const initialState = await getInitialValue(props.initialState);
-    await setState(initialState);
+  const reset = () => setState(props.initialState);
+
+  const wasModified = () => !isEqual(state(), props.initialState);
+
+  const setFieldValue = <F,>(path: string, update: Update<F>) => {
+    setState((currentState) => {
+      const updatedValue = getUpdatedValue(
+        get(currentState, path),
+        update,
+      );
+      const nextState = set(currentState, path, updatedValue);
+      return nextState;
+    });
   };
 
-  const wasModified = () => !isEqual(state(), initialState);
-
-  const _setFieldStatus = (
-    path: string,
-    key: keyof FieldStatus,
-    value: boolean,
-  ) => {
-    setFieldStatuses((prev) => ({
+  const setFieldMeta = (path: string, update: Update<FieldMetaState>) => {
+    const currentMeta = fieldMetas()[path] ?? defaultFieldMetaState;
+    const next = getUpdatedValue(currentMeta, update);
+    setFieldMetas((prev) => ({
       ...prev,
-      [path]: {
-        ...(prev[path] ?? {
-          isSettingMeta: false,
-          isSettingValue: false,
-        }),
-        [key]: value,
-      },
+      [path]: next,
     }));
   };
 
-  const setFieldValue = async <F,>(path: string, update: Update<F>) => {
-    try {
-      await initPromise;
-      _setFieldStatus(path, "isSettingValue", true);
-      await setState(async (currentState) => {
-        const updatedValue = await getUpdatedValue(
-          get(currentState, path),
-          update,
-        );
-        const nextState = set(currentState, path, updatedValue);
-        return nextState;
-      });
-    } finally {
-      _setFieldStatus(path, "isSettingValue", false);
-    }
-  };
-
-  const setFieldMeta = async (path: string, update: Update<FieldMetaState>) => {
-    try {
-      _setFieldStatus(path, "isSettingMeta", true);
-      const currentMeta = fieldMetas()[path] ?? defaultFieldMetaState;
-      const next = await getUpdatedValue(currentMeta, update);
-      setFieldMetas((prev) => ({
-        ...prev,
-        [path]: next,
-      }));
-    } finally {
-      _setFieldStatus(path, "isSettingMeta", false);
-    }
-  };
-
-  const formSchema = () => props.schema
-
   const isFieldRequired = (path: string, variant?: NullOrOptional[]) => {
-    return _isFieldRequired(formSchema(), path, variant)
+    return _isFieldRequired(props.schema, path, variant)
   }
 
   return {
-    initialState: _initialState,
-    formSchema,
+    initialState: props.initialState,
+    formSchema: props.schema,
     isFieldRequired,
     setFieldMeta,
     setFieldValue,
     state,
     setState,
-    formStatus,
-    fieldStatuses,
+    isValidating,
+    isSubmitting,
     fieldMetas,
     setFieldMetas,
     errors,
@@ -357,14 +262,6 @@ export function useForm<State = unknown>(): FormContextProps<State> {
 export function useField<T>(path: string): FieldContext<T> {
   const form = useForm();
 
-  const getStatus = createMemo(
-    () =>
-      form.fieldStatuses()[path] ?? {
-        isSettingMeta: false,
-        isSettingValue: false,
-      },
-  );
-
   const getMeta = createMemo(
     () =>
       form.fieldMetas()[path] ?? {
@@ -383,15 +280,15 @@ export function useField<T>(path: string): FieldContext<T> {
 
   const wasModified = createMemo(() => {
     const currentState = get(form.state(), path);
-    const initialState = get(form.initialState(), path);
+    const initialState = get(form.initialState, path);
 
     return !isEqual(currentState, initialState);
   });
 
-  const reset = async () => {
-    const initialValue = get(form.initialState(), path);
+  const reset = () => {
+    const initialValue = get(form.initialState, path);
     if (!initialValue) return;
-    await form.setFieldValue(path, initialValue);
+    form.setFieldValue(path, initialValue);
   };
 
   const setValue = (update: Update<T>) => form.setFieldValue(path, update);
@@ -407,7 +304,6 @@ export function useField<T>(path: string): FieldContext<T> {
     meta: getMeta,
     setMeta,
     errors,
-    status: getStatus,
     reset,
     wasModified,
   };
@@ -415,98 +311,69 @@ export function useField<T>(path: string): FieldContext<T> {
 
 export type ArrayFieldState<T> = FieldContext<T[]> &
   Readonly<{
-    push: (item: Initializer<T>) => Promise<void>;
-    remove: (index: Initializer<number>) => Promise<void>;
-    move: (from: Initializer<number>, to: Initializer<number>) => Promise<void>;
-    insert: (index: Initializer<number>, item: Initializer<T>) => Promise<void>;
-    replace: (
-      index: Initializer<number>,
-      item: Initializer<T>,
-    ) => Promise<void>;
-    empty: () => Promise<void>;
-    swap: (
-      indexA: Initializer<number>,
-      indexB: Initializer<number>,
-    ) => Promise<void>;
+    push: (item: T) => void;
+    remove: (index: number) => void;
+    move: (from: number, to: number) => void;
+    insert: (index: number, item: T) => void;
+    replace: (index: number, item: T) => void;
+    empty: () => void;
+    swap: (indexA: number, indexB: number) => void;
   }>;
 
 export function useArrayField<T>(path: string): ArrayFieldState<T> {
   const baseField = useField<T[]>(path);
 
-  const push = async (item: Initializer<T>) => {
-    await baseField.setValue(async (prev) => [
+  const push = (item: T) => {
+    baseField.setValue((prev) => [
       ...prev,
-      await getInitialValue(item),
+      item,
     ]);
   };
 
-  const remove = async (index: Initializer<number>) => {
-    await baseField.setValue(async (prev) => {
-      const _index = await getInitialValue(index);
-      return prev.filter((_, i) => i !== _index);
+  const remove = (index: number) => {
+    baseField.setValue((prev) => {
+      return prev.filter((_, i) => i !== index);
     });
   };
 
-  const move = async (from: Initializer<number>, to: Initializer<number>) => {
-    await baseField.setValue(async (prev) => {
-      const [_from, _to] = await Promise.all([
-        getInitialValue(from),
-        getInitialValue(to),
-      ] as const);
-
+  const move = (from: number, to: number) => {
+    baseField.setValue((prev) => {
       const newArray = [...prev];
-      const [removed] = newArray.splice(_from, 1);
+      const [removed] = newArray.splice(from, 1);
       if (removed) {
-        newArray.splice(_to, 0, removed);
+        newArray.splice(to, 0, removed);
       }
       return newArray;
     });
   };
 
-  const insert = async (index: Initializer<number>, item: Initializer<T>) => {
-    await baseField.setValue(async (prev) => {
-      const [_index, _item] = await Promise.all([
-        getInitialValue(index),
-        getInitialValue(item),
-      ] as const);
-
+  const insert = (index: number, item: T) => {
+    baseField.setValue((prev) => {
       const newArray = [...prev];
-      newArray.splice(_index, 0, _item);
+      newArray.splice(index, 0, item);
       return newArray;
     });
   };
 
-  const replace = async (index: Initializer<number>, item: Initializer<T>) => {
-    await baseField.setValue(async (prev) => {
-      const [_index, _item] = await Promise.all([
-        getInitialValue(index),
-        getInitialValue(item),
-      ] as const);
-
+  const replace = (index: number, item: T) => {
+    baseField.setValue((prev) => {
       const newArray = [...prev];
-      newArray[_index] = _item;
+      newArray[index] = item;
       return newArray;
     });
   };
 
-  const empty = async () => {
-    await baseField.setValue([]);
-  };
+  const empty = () => baseField.setValue([]);
 
-  const swap = async (
-    indexA: Initializer<number>,
-    indexB: Initializer<number>,
+  const swap = (
+    indexA: number,
+    indexB: number,
   ) => {
-    await baseField.setValue(async (prev) => {
-      const [_indexA, _indexB] = await Promise.all([
-        getInitialValue(indexA),
-        getInitialValue(indexB),
-      ] as const);
-
+    baseField.setValue((prev) => {
       const newArray = [...prev];
-      const temp = newArray[_indexA];
-      newArray[_indexA] = newArray[_indexB] as T;
-      newArray[_indexB] = temp as T;
+      const temp = newArray[indexA];
+      newArray[indexA] = newArray[indexB] as T;
+      newArray[indexB] = temp as T;
       return newArray;
     });
   };

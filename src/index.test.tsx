@@ -26,27 +26,7 @@ describe("Form Initialization", () => {
 
     await waitFor(() => {
       expect(form.state()).toEqual(initialState);
-      expect(form.initialState()).toEqual(initialState);
-    })
-  });
-
-  it("should initialize with asynchronous initial state", async () => {
-    const asyncInitialState = async () => {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      return { name: "John Doe", age: 30 };
-    };
-
-    const form = createForm({
-      schema,
-      initialState: asyncInitialState,
-      onSubmit: vi.fn(),
-    });
-
-    expect(form.state()).toBeNull();
-
-    await waitFor(() => {
-      expect(form.state()).toEqual({ name: "John Doe", age: 30 });
-      expect(form.initialState()).toEqual({ name: "John Doe", age: 30 });
+      expect(form.initialState).toEqual(initialState);
     })
   });
 
@@ -161,61 +141,63 @@ describe("createForm", () => {
   });
 
   it("should update state correctly", async () => {
-    await form.setState({ name: "John", age: 25 });
+    form.setState({ name: "John", age: 25 });
     expect(form.state()).toEqual({ name: "John", age: 25 });
   });
 
   it("should validate the form state", async () => {
-    await form.setState({ name: "Jo", age: 17 });
-    expect(form.errors()).toEqual([
-      {
-        path: "name",
-        message: "String must contain at least 3 character(s)",
-      },
-      {
-        path: "age",
-        message: "Number must be greater than or equal to 18",
-      },
-    ] satisfies FormixError[]);
+    form.setState({ name: "Jo", age: 17 });
+    await waitFor(() => {
+      expect(form.errors()).toEqual([
+        {
+          path: "name",
+          message: "String must contain at least 3 character(s)",
+        },
+        {
+          path: "age",
+          message: "Number must be greater than or equal to 18",
+        },
+      ] satisfies FormixError[]);
+    })
   });
 
   it("should call onSubmit when form is valid", async () => {
-    await form.setState({ name: "John", age: 25 });
+    form.setState({ name: "John", age: 25 });
     await form.submit();
     expect(onSubmit).toHaveBeenCalledWith({ name: "John", age: 25 });
   });
 
   it("should not call onSubmit when form is invalid", async () => {
-    await form.setState({ name: "Jo", age: 17 });
+    form.setState({ name: "Jo", age: 17 });
     await form.submit();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("should reset the form state", async () => {
-    await form.setState({ name: "John", age: 25 });
-    await form.reset();
+    form.setState({ name: "John", age: 25 });
+    form.reset();
     expect(form.state()).toEqual(initialState);
   });
 
   it("should handle undo and redo operations", async () => {
-    await form.setState({ name: "John", age: 25 });
+    form.setState({ name: "John", age: 25 });
 
-    await form.setState({ name: "Jane", age: 30 });
+    form.setState({ name: "Jane", age: 30 });
 
     expect(form.canUndo()).toBe(true);
-    await form.undo();
+    form.undo();
 
     expect(form.canRedo()).toBe(true);
-    await form.redo();
+    form.redo();
   });
 
   it("should update field value correctly", async () => {
-    await form.setFieldValue("name", "Alice");
+    form.setFieldValue("name", "Alice");
     expect(form.state()?.name).toBe("Alice");
   });
 
   it("should update field meta correctly", async () => {
-    await form.setFieldMeta("name", {
+    form.setFieldMeta("name", {
       ...defaultFieldMetaState,
       touched: true,
     });
@@ -224,7 +206,7 @@ describe("createForm", () => {
 
   it("should detect if form was modified", async () => {
     expect(form.wasModified()).toBe(false);
-    await form.setState({ name: "John", age: 25 });
+    form.setState({ name: "John", age: 25 });
     expect(form.wasModified()).toBe(true);
   });
 
@@ -241,8 +223,8 @@ describe("createForm", () => {
       onSubmit: vi.fn(),
     });
 
-    await nestedForm.setFieldValue("user.name", "John");
-    await nestedForm.setFieldValue("user.email", "john@example.com");
+    nestedForm.setFieldValue("user.name", "John");
+    nestedForm.setFieldValue("user.email", "john@example.com");
 
     expect(nestedForm.state()).toEqual({
       user: { name: "John", email: "john@example.com" },
@@ -259,22 +241,22 @@ describe("createForm", () => {
       onSubmit: vi.fn(),
     });
 
-    await arrayForm.setFieldValue("tags", ["tag1", "tag2"]);
+    arrayForm.setFieldValue("tags", ["tag1", "tag2"]);
     expect(arrayForm.state()).toEqual({ tags: ["tag1", "tag2"] });
 
-    await arrayForm.setFieldValue("tags.0", "updatedTag");
+    arrayForm.setFieldValue("tags.0", "updatedTag");
     expect(arrayForm.state()).toEqual({ tags: ["updatedTag", "tag2"] });
   });
 
   it("should handle multiple undo/redo operations", async () => {
-    await form.setState({ name: "John", age: 25 });
-    await form.setState({ name: "Jane", age: 30 });
-    await form.setState({ name: "Bob", age: 35 });
+    form.setState({ name: "John", age: 25 });
+    form.setState({ name: "Jane", age: 30 });
+    form.setState({ name: "Bob", age: 35 });
 
-    await form.undo(2);
+    form.undo(2);
     expect(form.state()).toEqual({ name: "John", age: 25 });
 
-    await form.redo();
+    form.redo();
     expect(form.state()).toEqual({ name: "Jane", age: 30 });
 
     expect(form.canUndo()).toBe(true);
@@ -285,29 +267,17 @@ describe("createForm", () => {
     expect(form.canUndo()).toBe(false);
     expect(form.canRedo()).toBe(false);
 
-    await form.setState({ name: "John", age: 25 });
+    form.setState({ name: "John", age: 25 });
     expect(form.canUndo()).toBe(true);
     expect(form.canRedo()).toBe(false);
 
-    await form.undo();
+    form.undo();
     expect(form.canUndo()).toBe(false);
     expect(form.canRedo()).toBe(true);
 
-    await form.redo();
+    form.redo();
     expect(form.canUndo()).toBe(true);
     expect(form.canRedo()).toBe(false);
-  });
-
-  it("should handle async initialState", async () => {
-    const asyncForm = createForm({
-      schema,
-      initialState: async () => ({ name: "Async", age: 30 }),
-      onSubmit: vi.fn(),
-    });
-
-    await waitFor(() => {
-      expect(asyncForm.state()).toEqual({ name: "Async", age: 30 });
-    })
   });
 
   it("should handle async onSubmit", async () => {
@@ -318,7 +288,7 @@ describe("createForm", () => {
       onSubmit: asyncOnSubmit,
     });
 
-    await asyncForm.setState({ name: "John", age: 25 });
+    asyncForm.setState({ name: "John", age: 25 });
     await asyncForm.submit();
 
     expect(asyncOnSubmit).toHaveBeenCalledWith({ name: "John", age: 25 });
@@ -340,13 +310,15 @@ describe("createForm", () => {
       initialState: { password: "", confirmPassword: "" },
       onSubmit: vi.fn(),
     });
-    await form.setState({ password: "pass123", confirmPassword: "pass456" });
-    expect(form.errors()).toEqual([
-      {
-        path: "",
-        message: "Passwords don't match",
-      },
-    ] satisfies FormixError[]);
+    form.setState({ password: "pass123", confirmPassword: "pass456" });
+    await waitFor(() => {
+      expect(form.errors()).toEqual([
+        {
+          path: "",
+          message: "Passwords don't match",
+        },
+      ] satisfies FormixError[]);
+    })
   });
 
   it("should handle custom validation", async () => {
@@ -366,7 +338,7 @@ describe("createForm", () => {
       onSubmit: vi.fn(),
     });
 
-    await customForm.setFieldValue("username", "taken");
+    customForm.setFieldValue("username", "taken");
     await customForm.submit();
 
     expect(customForm.errors()).toEqual([
@@ -465,7 +437,6 @@ describe('useField Hook', () => {
         <span data-testid="value">{JSON.stringify(field.value())}</span>
         <span data-testid="errors">{JSON.stringify(field.errors())}</span>
         <span data-testid="meta">{JSON.stringify(field.meta())}</span>
-        <span data-testid="status">{JSON.stringify(field.status())}</span>
         <button onClick={() => field.setValue('New Value')}>Set Value</button>
         <button onClick={() => {
           field.setValue(async () => {
@@ -516,8 +487,8 @@ describe('useField Hook', () => {
 
   it('resets field to initial value', async () => {
     const { getByTestId, getByText } = setup('name');
-    await fireEvent.click(getByText('Set Value'));
-    await fireEvent.click(getByText('Reset'));
+    fireEvent.click(getByText('Set Value'));
+    fireEvent.click(getByText('Reset'));
     expect(getByTestId('value').textContent).toBe('"John Doe"');
   });
 
@@ -568,7 +539,7 @@ describe('useField Hook', () => {
       wasModifiedResult = field.wasModified();
       return (
         <button onClick={async () => {
-          await field.setValue('Modified Value')
+          field.setValue('Modified Value')
           wasModifiedResult = field.wasModified()
         }}>
           Modify
@@ -592,146 +563,104 @@ describe('useField Hook', () => {
     })
   });
 
-  it('returns correct initial status', () => {
-    const { getByTestId } = setup('name');
-    const status = JSON.parse(getByTestId('status').textContent || '{}');
-    expect(status).toEqual({
-      isSettingMeta: false,
-      isSettingValue: false,
-    });
-  });
 
-  it('updates status when setting value asynchronously', async () => {
-    const { getByTestId, getByText } = setup('name');
-
-    const getStatus = () => JSON.parse(getByTestId('status').textContent || '{}');
-    const getValue = () => JSON.parse(getByTestId('value').textContent || '""');
-
-    expect(getStatus().isSettingValue).toBe(false);
-
-    fireEvent.click(getByText('Set Async Value'));
-
-    await waitFor(() => {
-      expect(getStatus().isSettingValue).toBe(true);
+  describe('useArrayField Hook', () => {
+    const schema = z.object({
+      items: z.array(z.string()),
     });
 
-    await waitFor(() => {
-      expect(getStatus().isSettingValue).toBe(false);
-      expect(getValue()).toBe('Async New Value');
+    const initialState = {
+      items: ['item1', 'item2', 'item3'],
+    };
+
+    const onSubmit = vi.fn();
+
+    function TestComponent() {
+      const arrayField = useArrayField<string>('items');
+      return (
+        <div>
+          <span data-testid="value">{JSON.stringify(arrayField.value())}</span>
+          <button onClick={() => arrayField.push('newItem')}>Push</button>
+          <button onClick={() => arrayField.remove(1)}>Remove</button>
+          <button onClick={() => arrayField.move(0, 2)}>Move</button>
+          <button onClick={() => arrayField.insert(1, 'insertedItem')}>Insert</button>
+          <button onClick={() => arrayField.replace(0, 'replacedItem')}>Replace</button>
+          <button onClick={() => arrayField.empty()}>Empty</button>
+          <button onClick={() => arrayField.swap(0, 2)}>Swap</button>
+        </div>
+      );
+    }
+
+    function setup() {
+      const context = createForm({ schema, initialState, onSubmit });
+      return render(() => (
+        <Form context={context}>
+          <TestComponent />
+        </Form>
+      ));
+    }
+
+    it('initializes with correct value', async () => {
+      const { getByTestId } = setup();
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3']);
+      });
+    });
+
+    it('pushes new item correctly', async () => {
+      const { getByTestId, getByText } = setup();
+      fireEvent.click(getByText('Push'));
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3', 'newItem']);
+      });
+    });
+
+    it('removes item correctly', async () => {
+      const { getByTestId, getByText } = setup();
+      fireEvent.click(getByText('Remove'));
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item3']);
+      });
+    });
+
+    it('moves item correctly', async () => {
+      const { getByTestId, getByText } = setup();
+      fireEvent.click(getByText('Move'));
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item2', 'item3', 'item1']);
+      });
+    });
+
+    it('inserts item correctly', async () => {
+      const { getByTestId, getByText } = setup();
+      fireEvent.click(getByText('Insert'));
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'insertedItem', 'item2', 'item3']);
+      });
+    });
+
+    it('replaces item correctly', async () => {
+      const { getByTestId, getByText } = setup();
+      fireEvent.click(getByText('Replace'));
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['replacedItem', 'item2', 'item3']);
+      });
+    });
+
+    it('empties array correctly', async () => {
+      const { getByTestId, getByText } = setup();
+      fireEvent.click(getByText('Empty'));
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual([]);
+      });
+    });
+
+    it('swaps items correctly', async () => {
+      const { getByTestId, getByText } = setup();
+      fireEvent.click(getByText('Swap'));
+      await waitFor(() => {
+        expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item3', 'item2', 'item1']);
+      });
     });
   });
-
-  it('updates status when setting meta', async () => {
-    const { getByTestId, getByText } = setup('name');
-
-    const getStatus = () => JSON.parse(getByTestId('status').textContent || '{}');
-    expect(getStatus().isSettingMeta).toBe(false);
-
-    fireEvent.click(getByText('Set Meta'));
-    expect(getStatus().isSettingMeta).toBe(true);
-
-    await waitFor(() => {
-      expect(getStatus().isSettingMeta).toBe(false);
-    })
-  });
-});
-
-describe('useArrayField Hook', () => {
-  const schema = z.object({
-    items: z.array(z.string()),
-  });
-
-  const initialState = {
-    items: ['item1', 'item2', 'item3'],
-  };
-
-  const onSubmit = vi.fn();
-
-  function TestComponent() {
-    const arrayField = useArrayField<string>('items');
-    return (
-      <div>
-        <span data-testid="value">{JSON.stringify(arrayField.value())}</span>
-        <button onClick={() => arrayField.push('newItem')}>Push</button>
-        <button onClick={() => arrayField.remove(1)}>Remove</button>
-        <button onClick={() => arrayField.move(0, 2)}>Move</button>
-        <button onClick={() => arrayField.insert(1, 'insertedItem')}>Insert</button>
-        <button onClick={() => arrayField.replace(0, 'replacedItem')}>Replace</button>
-        <button onClick={() => arrayField.empty()}>Empty</button>
-        <button onClick={() => arrayField.swap(0, 2)}>Swap</button>
-      </div>
-    );
-  }
-
-  function setup() {
-    const context = createForm({ schema, initialState, onSubmit });
-    return render(() => (
-      <Form context={context}>
-        <TestComponent />
-      </Form>
-    ));
-  }
-
-  it('initializes with correct value', async () => {
-    const { getByTestId } = setup();
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3']);
-    });
-  });
-
-  it('pushes new item correctly', async () => {
-    const { getByTestId, getByText } = setup();
-    fireEvent.click(getByText('Push'));
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item2', 'item3', 'newItem']);
-    });
-  });
-
-  it('removes item correctly', async () => {
-    const { getByTestId, getByText } = setup();
-    fireEvent.click(getByText('Remove'));
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'item3']);
-    });
-  });
-
-  it('moves item correctly', async () => {
-    const { getByTestId, getByText } = setup();
-    fireEvent.click(getByText('Move'));
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item2', 'item3', 'item1']);
-    });
-  });
-
-  it('inserts item correctly', async () => {
-    const { getByTestId, getByText } = setup();
-    await fireEvent.click(getByText('Insert'));
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item1', 'insertedItem', 'item2', 'item3']);
-    });
-  });
-
-  it('replaces item correctly', async () => {
-    const { getByTestId, getByText } = setup();
-    fireEvent.click(getByText('Replace'));
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['replacedItem', 'item2', 'item3']);
-    });
-  });
-
-  it('empties array correctly', async () => {
-    const { getByTestId, getByText } = setup();
-    fireEvent.click(getByText('Empty'));
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual([]);
-    });
-  });
-
-  it('swaps items correctly', async () => {
-    const { getByTestId, getByText } = setup();
-    fireEvent.click(getByText('Swap'));
-    await waitFor(() => {
-      expect(JSON.parse(getByTestId('value').textContent || '[]')).toEqual(['item3', 'item2', 'item1']);
-    });
-  });
-});
+})
