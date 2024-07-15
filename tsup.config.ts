@@ -11,16 +11,12 @@ export default defineConfig((options) => ({
   minify: true,
   clean: true,
   external: ["solid-js", "zod"],
+  outExtension: () => ({ js: '.jsx' }),
   esbuildOptions(options) {
     options.jsx = "preserve";
     options.jsxImportSource = "solid-js";
     options.banner = {
       js: '"use client";',
-    };
-    options.loader = {
-      '.js': 'jsx',
-      '.ts': 'tsx',
-      '.tsx': 'tsx',
     };
   },
   onSuccess: async () => {

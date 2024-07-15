@@ -11,7 +11,7 @@
   "files": [
     "dist"
   ],
-  "module": "dist/index.js",
+  "module": "dist/index.jsx",
   "type": "module",
   "types": "dist/index.d.ts",
   "devDependencies": {
