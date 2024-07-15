@@ -14,6 +14,9 @@ export default defineConfig((options) => ({
   esbuildOptions(options) {
     options.jsx = "preserve";
     options.jsxImportSource = "solid-js";
+    options.loader = {
+      '.js': 'jsx',
+    }
   },
   onSuccess: async () => {
     try {
