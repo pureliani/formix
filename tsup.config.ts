@@ -14,9 +14,14 @@ export default defineConfig((options) => ({
   esbuildOptions(options) {
     options.jsx = "preserve";
     options.jsxImportSource = "solid-js";
+    options.banner = {
+      js: '"use client";',
+    };
     options.loader = {
       '.js': 'jsx',
-    }
+      '.ts': 'tsx',
+      '.tsx': 'tsx',
+    };
   },
   onSuccess: async () => {
     try {
