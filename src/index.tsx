@@ -102,6 +102,7 @@ export type CreateFormProps<
   initialState: State;
   onSubmit: (state: State) => void | Promise<void>;
   undoLimit?: number;
+  pushToUndoHistoryDebounce?: number
 };
 
 export function createForm<
@@ -112,7 +113,7 @@ export function createForm<
   const [fieldMetas, setFieldMetas] = createSignal<
     Record<string, FieldMetaState>
   >({});
-  const undoRedoManager = createUndoRedoManager<State>(structuredClone(props.initialState), props.undoLimit)
+  const undoRedoManager = createUndoRedoManager<State>(structuredClone(props.initialState), props.undoLimit, props.pushToUndoHistoryDebounce)
   const [isValidating, setIsValidating] = createSignal(false)
   const [isSubmitting, setIsSubmitting] = createSignal(false)
   const [errors, setErrors] = createSignal<FormixError[]>([]);
@@ -137,7 +138,7 @@ export function createForm<
     const next = getUpdatedValue(state(), update);
     setStateInternal(next);
     if (!setStateCalledByUndoRedoFn) {
-      undoRedoManager.setState(next);
+      undoRedoManager.setState(structuredClone(next));
     }
 
     revalidate().then((r) => {
@@ -162,16 +163,16 @@ export function createForm<
   };
 
   const undo = (steps = 1) => {
-    undoRedoManager.undo(steps);
     setStateCalledByUndoRedoFn = true;
-    setState(undoRedoManager.getCurrentState());
+    undoRedoManager.undo(steps);
+    setState(undoRedoManager.getState());
     setStateCalledByUndoRedoFn = false;
   };
 
   const redo = (steps = 1) => {
-    undoRedoManager.redo(steps);
     setStateCalledByUndoRedoFn = true;
-    setState(undoRedoManager.getCurrentState());
+    undoRedoManager.redo(steps);
+    setState(undoRedoManager.getState());
     setStateCalledByUndoRedoFn = false;
   };
 

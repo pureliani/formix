@@ -224,14 +224,18 @@ describe("createForm", () => {
 
   it("should handle undo and redo operations", async () => {
     form.setState({ name: "John", age: 25 });
+    await new Promise((res) => setTimeout(res, 700))
 
     form.setState({ name: "Jane", age: 30 });
+    await new Promise((res) => setTimeout(res, 700))
 
     expect(form.canUndo()).toBe(true);
     form.undo();
+    expect(form.state()).toEqual({ name: "John", age: 25 });
 
     expect(form.canRedo()).toBe(true);
     form.redo();
+    expect(form.state()).toEqual({ name: "Jane", age: 30 });
   });
 
   it("should update field value correctly", async () => {
@@ -293,8 +297,11 @@ describe("createForm", () => {
 
   it("should handle multiple undo/redo operations", async () => {
     form.setState({ name: "John", age: 25 });
+    await new Promise((res) => setTimeout(res, 700))
     form.setState({ name: "Jane", age: 30 });
+    await new Promise((res) => setTimeout(res, 700))
     form.setState({ name: "Bob", age: 35 });
+    await new Promise((res) => setTimeout(res, 700))
 
     form.undo(2);
     expect(form.state()).toEqual({ name: "John", age: 25 });
@@ -311,6 +318,8 @@ describe("createForm", () => {
     expect(form.canRedo()).toBe(false);
 
     form.setState({ name: "John", age: 25 });
+    await new Promise((res) => setTimeout(res, 700))
+
     expect(form.canUndo()).toBe(true);
     expect(form.canRedo()).toBe(false);
 
