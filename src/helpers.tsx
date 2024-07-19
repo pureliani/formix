@@ -56,7 +56,7 @@ export function createUndoRedoManager<T>(
     clearTimeout(timer)
     timer = setTimeout(() => {
       setHistory(prev => {
-        const newHistory = [...prev.slice(0, index() + 1), newState];
+        const newHistory = [...prev.slice(0, index() + 1), structuredClone(newState)];
         return newHistory.slice(-maxHistorySize);
       });
       setIndex(prev => Math.min(prev + 1, maxHistorySize - 1));

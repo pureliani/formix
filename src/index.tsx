@@ -138,7 +138,7 @@ export function createForm<
     const next = getUpdatedValue(state(), update);
     setStateInternal(next);
     if (!setStateCalledByUndoRedoFn) {
-      undoRedoManager.setState(structuredClone(next));
+      undoRedoManager.setState(next);
     }
 
     revalidate().then((r) => {
