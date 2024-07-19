@@ -1,5 +1,6 @@
 import { type ZodIssue, type ZodTypeAny, ZodObject, ZodArray, ZodOptional, ZodNullable } from "zod";
 import type { FormixError, Update } from ".";
+import { createSignal, createMemo } from 'solid-js';
 
 export function isEqual(a: any, b: any): boolean {
   if (a === b) return true;
@@ -49,42 +50,53 @@ type UndoRedoState<T> = {
 
 export function createUndoRedoManager<T>(
   initialState: T,
-  maxHistorySize = 500,
+  maxHistorySize = 500
 ) {
-  let state: UndoRedoState<T> = {
+  const [state, setInternalState] = createSignal<UndoRedoState<T>>({
     history: [initialState],
     currentIndex: 0,
-  };
+  });
 
   const setState = (newState: T) => {
-    state = {
+    setInternalState(prev => ({
       history: [
-        ...state.history.slice(0, state.currentIndex + 1),
+        ...prev.history.slice(0, prev.currentIndex + 1),
         newState,
       ].slice(-maxHistorySize),
-      currentIndex: Math.min(state.currentIndex + 1, maxHistorySize - 1),
-    };
+      currentIndex: Math.min(prev.currentIndex + 1, maxHistorySize - 1),
+    }));
   };
 
-  const undo = (steps = 1): T => {
-    state.currentIndex = Math.max(0, state.currentIndex - steps);
-    return state.history[state.currentIndex] as T;
+  const undo = (steps = 1) => {
+    setInternalState(prev => ({
+      ...prev,
+      currentIndex: Math.max(0, prev.currentIndex - steps),
+    }));
   };
 
-  const redo = (steps = 1): T => {
-    state.currentIndex = Math.min(
-      state.history.length - 1,
-      state.currentIndex + steps,
-    );
-    return state.history[state.currentIndex] as T;
+  const redo = (steps = 1) => {
+    setInternalState(prev => ({
+      ...prev,
+      currentIndex: Math.min(
+        prev.history.length - 1,
+        prev.currentIndex + steps
+      ),
+    }));
   };
 
-  const canUndo = (steps = 1): boolean => state.currentIndex >= steps;
-  const canRedo = (steps = 1): boolean =>
-    state.currentIndex + steps < state.history.length;
-  const getCurrentState = (): T => state.history[state.currentIndex] as T;
+  const canUndo = (steps = 1) => state().currentIndex >= steps;
+  const canRedo = (steps = 1) => state().currentIndex + steps < state().history.length;
 
-  return { setState, undo, redo, canUndo, canRedo, getCurrentState };
+  const getCurrentState = createMemo(() => state().history[state().currentIndex]!);
+
+  return {
+    setState,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    getCurrentState
+  };
 }
 
 export function get<T = any>(obj: any, path: string): T | undefined {

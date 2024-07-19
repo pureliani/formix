@@ -267,8 +267,10 @@ describe("createUndoRedoManager", () => {
     manager.setState(1);
     manager.setState(2);
     expect(manager.getCurrentState()).toBe(2);
-    expect(manager.undo()).toBe(1);
-    expect(manager.redo()).toBe(2);
+    manager.undo();
+    expect(manager.getCurrentState()).toBe(1);
+    manager.redo();
+    expect(manager.getCurrentState()).toBe(2);
   });
 
   it("should respect maxHistorySize", () => {
@@ -278,9 +280,12 @@ describe("createUndoRedoManager", () => {
     manager.setState(3);
     manager.setState(4);
     expect(manager.getCurrentState()).toBe(4);
-    expect(manager.undo()).toBe(3);
-    expect(manager.undo()).toBe(2);
-    expect(manager.undo()).toBe(2);
+    manager.undo()
+    expect(manager.getCurrentState()).toBe(3);
+    manager.undo()
+    expect(manager.getCurrentState()).toBe(2);
+    manager.undo()
+    expect(manager.getCurrentState()).toBe(2);
   });
 
   it("should handle multiple undo/redo steps", () => {
@@ -288,8 +293,10 @@ describe("createUndoRedoManager", () => {
     manager.setState(1);
     manager.setState(2);
     manager.setState(3);
-    expect(manager.undo(2)).toBe(1);
-    expect(manager.redo(2)).toBe(3);
+    manager.undo(2);
+    expect(manager.getCurrentState()).toBe(1)
+    manager.redo(2);
+    expect(manager.getCurrentState()).toBe(3)
   });
 
   it("should correctly report canUndo/canRedo", () => {
@@ -313,8 +320,10 @@ describe("createUndoRedoManager", () => {
     manager.undo();
     manager.setState(3);
     expect(manager.getCurrentState()).toBe(3);
-    expect(manager.undo()).toBe(1);
-    expect(manager.redo()).toBe(3);
+    manager.undo();
+    expect(manager.getCurrentState()).toBe(1);
+    manager.redo();
+    expect(manager.getCurrentState()).toBe(3);
   });
 });
 

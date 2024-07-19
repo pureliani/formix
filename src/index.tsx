@@ -162,21 +162,18 @@ export function createForm<
   };
 
   const undo = (steps = 1) => {
-    const previousState = undoRedoManager.undo(steps);
+    undoRedoManager.undo(steps);
     setStateCalledByUndoRedoFn = true;
-    setState(previousState);
+    setState(undoRedoManager.getCurrentState());
     setStateCalledByUndoRedoFn = false;
   };
 
   const redo = (steps = 1) => {
-    const nextState = undoRedoManager.redo(steps);
+    undoRedoManager.redo(steps);
     setStateCalledByUndoRedoFn = true;
-    setState(nextState);
+    setState(undoRedoManager.getCurrentState());
     setStateCalledByUndoRedoFn = false;
   };
-
-  const canUndo = (steps = 1) => undoRedoManager.canUndo(steps) ?? false;
-  const canRedo = (steps = 1) => undoRedoManager.canRedo(steps) ?? false;
 
   const reset = () => setState(structuredClone(props.initialState));
 
@@ -225,8 +222,8 @@ export function createForm<
     submit,
     undo,
     redo,
-    canUndo,
-    canRedo,
+    canUndo: undoRedoManager.canUndo,
+    canRedo: undoRedoManager.canRedo,
     wasModified,
   };
 }
