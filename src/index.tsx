@@ -109,11 +109,11 @@ export function createForm<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>,
 >(props: CreateFormProps<Schema, State>): FormContextProps<State> {
-  const [state, setStateInternal] = createSignal(structuredClone(props.initialState));
+  const [state, setStateInternal] = createSignal(props.initialState);
   const [fieldMetas, setFieldMetas] = createSignal<
     Record<string, FieldMetaState>
   >({});
-  const undoRedoManager = createUndoRedoManager<State>(structuredClone(props.initialState), props.undoLimit, props.pushToUndoHistoryDebounce)
+  const undoRedoManager = createUndoRedoManager<State>(props.initialState, props.undoLimit, props.pushToUndoHistoryDebounce)
   const [isValidating, setIsValidating] = createSignal(false)
   const [isSubmitting, setIsSubmitting] = createSignal(false)
   const [errors, setErrors] = createSignal<FormixError[]>([]);
@@ -176,7 +176,7 @@ export function createForm<
     setStateCalledByUndoRedoFn = false;
   };
 
-  const reset = () => setState(structuredClone(props.initialState));
+  const reset = () => setState(props.initialState);
 
   const wasModified = () => !isEqual(state(), props.initialState);
 
@@ -204,7 +204,7 @@ export function createForm<
     return _isFieldRequired(props.schema, path, variant)
   }
 
-  const initialState = () => structuredClone(props.initialState)
+  const initialState = () => props.initialState
 
   return {
     initialState,

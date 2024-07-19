@@ -56,7 +56,7 @@ export function createUndoRedoManager<T>(
     clearTimeout(timer)
     timer = setTimeout(() => {
       setHistory(prev => {
-        const newHistory = [...prev.slice(0, index() + 1), structuredClone(newState)];
+        const newHistory = [...prev.slice(0, index() + 1), newState];
         return newHistory.slice(-maxHistorySize);
       });
       setIndex(prev => Math.min(prev + 1, maxHistorySize - 1));
@@ -119,40 +119,44 @@ export function set(obj: any, path: string, value: any): any {
   const keys = path.split('.');
 
   const emptyKeyIndex = keys.findIndex(key => key === '');
-  if (emptyKeyIndex != -1) {
+  if (emptyKeyIndex !== -1) {
     throw new Error(`@gapu/formix: failed to update nested property, empty key at index ${emptyKeyIndex}`);
   }
 
   const result = Array.isArray(obj) ? [...obj] : { ...obj };
   let current = result;
+  let parent: any = undefined;
+  let lastKey: string | undefined = undefined;
 
-  for (let i = 0; i < keys.length - 1; i++) {
+  for (let i = 0; i < keys.length; i++) {
     const segment = keys[i];
-    const nextSegment = keys[i + 1];
 
     if (segment === undefined) {
       throw new Error(`@gapu/formix: undefined segment at index ${i}`);
     }
 
-    if (!(segment in current)) {
-      current[segment] = nextSegment !== undefined && !isNaN(Number(nextSegment)) ? [] : {};
-    } else if (typeof current[segment] !== 'object') {
-      current[segment] = {};
+    if (i === keys.length - 1) {
+      if (Array.isArray(current) && isNaN(Number(segment))) {
+        throw new Error(`@gapu/formix: cannot use non-numeric index on array`);
+      }
+      if (parent && lastKey !== undefined) {
+        parent[lastKey] = Array.isArray(current) ? [...current] : { ...current };
+        current = parent[lastKey];
+      }
+      current[segment] = value;
+    } else {
+      if (!(segment in current)) {
+        current[segment] = keys[i + 1] !== undefined && !isNaN(Number(keys[i + 1])) ? [] : {};
+      } else if (typeof current[segment] !== 'object') {
+        current[segment] = {};
+      } else {
+        current[segment] = Array.isArray(current[segment]) ? [...current[segment]] : { ...current[segment] };
+      }
+      parent = current;
+      lastKey = segment;
+      current = current[segment];
     }
-
-    current = current[segment];
   }
-
-  const lastSegment = keys[keys.length - 1];
-  if (lastSegment === undefined) {
-    throw new Error(`@gapu/formix: undefined last segment`);
-  }
-
-  if (Array.isArray(current) && isNaN(Number(lastSegment))) {
-    throw new Error(`@gapu/formix: cannot use non-numeric index on array`);
-  }
-
-  current[lastSegment] = value;
 
   return result;
 }

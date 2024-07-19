@@ -153,6 +153,47 @@ describe("set", () => {
     expect(result).toEqual({ a: { b: 1, c: 2 } });
   });
 
+  it('should create a new object immutably when setting a nested property', () => {
+    const x = {
+      a: {
+        b: {
+          c: 1
+        }
+      },
+      d: {
+        e: {
+          f: 2
+        }
+      }
+    };
+
+    const beforeSet = JSON.parse(JSON.stringify(x));
+    const result = set(x, "a.b.c", 4);
+
+    expect(x).toEqual(beforeSet);
+    expect(x.a.b.c).toBe(1);
+
+    expect(result).toEqual({
+      a: {
+        b: {
+          c: 4
+        }
+      },
+      d: {
+        e: {
+          f: 2
+        }
+      }
+    });
+
+    expect(result).not.toBe(x);
+
+    expect(result.a).not.toBe(x.a);
+    expect(result.a.b).not.toBe(x.a.b);
+
+    expect(result.d).toBe(x.d);
+  })
+
   it("should create nested objects if they don't exist", () => {
     const obj = {};
     const result = set(obj, "a.b.c", 1);
