@@ -26,8 +26,51 @@ describe("Form Initialization", () => {
 
     await waitFor(() => {
       expect(form.state()).toEqual(initialState);
-      expect(form.initialState).toEqual(initialState);
+      expect(form.initialState()).toEqual(initialState);
     })
+  });
+
+
+  it("should not modify props.initialState when setState is called", async () => {
+    const schema = z.object({
+      name: z.string().min(3),
+      age: z.number().min(18),
+    });
+
+    const initialState = {
+      name: "John",
+      age: 25,
+    };
+
+    const form = createForm({
+      schema,
+      initialState,
+      onSubmit: vi.fn(),
+    });
+
+    expect(form.state()).toEqual(initialState);
+
+    form.setState({
+      name: "Jane",
+      age: 30,
+    });
+
+    await waitFor(() => {
+      expect(form.state()).toEqual({
+        name: "Jane",
+        age: 30,
+      });
+
+      expect(initialState).toEqual({
+        name: "John",
+        age: 25,
+      });
+
+      expect(form.initialState()).toEqual({
+        name: "John",
+        age: 25,
+      });
+    });
   });
 
   it("should validate initial state", async () => {

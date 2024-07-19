@@ -71,7 +71,7 @@ export type FormStatus = Readonly<{
 }>;
 
 export type FormContextProps<State> = Readonly<{
-  initialState: Readonly<State>;
+  initialState: () => Readonly<State>;
   state: () => Readonly<State>;
   setState: (update: Update<State>) => void;
   fieldMetas: () => Readonly<Record<string, FieldMetaState>>;
@@ -108,11 +108,11 @@ export function createForm<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>,
 >(props: CreateFormProps<Schema, State>): FormContextProps<State> {
-  const [state, setStateInternal] = createSignal(props.initialState);
+  const [state, setStateInternal] = createSignal(structuredClone(props.initialState));
   const [fieldMetas, setFieldMetas] = createSignal<
     Record<string, FieldMetaState>
   >({});
-  const undoRedoManager = createUndoRedoManager<State>(props.initialState, props.undoLimit)
+  const undoRedoManager = createUndoRedoManager<State>(structuredClone(props.initialState), props.undoLimit)
   const [isValidating, setIsValidating] = createSignal(false)
   const [isSubmitting, setIsSubmitting] = createSignal(false)
   const [errors, setErrors] = createSignal<FormixError[]>([]);
@@ -178,7 +178,7 @@ export function createForm<
   const canUndo = (steps = 1) => undoRedoManager.canUndo(steps) ?? false;
   const canRedo = (steps = 1) => undoRedoManager.canRedo(steps) ?? false;
 
-  const reset = () => setState(props.initialState);
+  const reset = () => setState(structuredClone(props.initialState));
 
   const wasModified = () => !isEqual(state(), props.initialState);
 
@@ -206,8 +206,10 @@ export function createForm<
     return _isFieldRequired(props.schema, path, variant)
   }
 
+  const initialState = () => structuredClone(props.initialState)
+
   return {
-    initialState: props.initialState,
+    initialState,
     formSchema: props.schema,
     isFieldRequired,
     setFieldMeta,
@@ -280,13 +282,13 @@ export function useField<T>(path: string): FieldContext<T> {
 
   const wasModified = createMemo(() => {
     const currentState = get(form.state(), path);
-    const initialState = get(form.initialState, path);
+    const initialState = get(form.initialState(), path);
 
     return !isEqual(currentState, initialState);
   });
 
   const reset = () => {
-    const initialValue = get(form.initialState, path);
+    const initialValue = get(form.initialState(), path);
     if (!initialValue) return;
     form.setFieldValue(path, initialValue);
   };
