@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import {
+  batch,
   createContext,
   createMemo,
   createSignal,
@@ -9,7 +10,6 @@ import {
 } from "solid-js";
 
 import {
-  createUndoRedoManager,
   formatZodIssues,
   get,
   getUpdatedValue,
@@ -71,15 +71,14 @@ export type FormStatus = Readonly<{
 }>;
 
 export type FormContextProps<State> = Readonly<{
-  initialState: () => Readonly<State>;
+  initialState: Readonly<State>;
+  formSchema: z.ZodTypeAny
   state: () => Readonly<State>;
-  setState: (update: Update<State>) => void;
+  setState: (path: string, update: Update<unknown>) => void;
   fieldMetas: () => Readonly<Record<string, FieldMetaState>>;
   isFieldRequired: (path: string, variant?: NullOrOptional[]) => boolean
-  formSchema: z.ZodTypeAny
   setFieldMetas: (update: Update<Record<string, FieldMetaState>>) => void;
   setFieldMeta: (path: string, update: Update<FieldMetaState>) => void;
-  setFieldValue: <FV>(path: string, update: Update<FV>) => void;
   errors: () => Readonly<FormixError[]>;
   isValidating: () => boolean
   isSubmitting: () => boolean
@@ -102,53 +101,98 @@ export type CreateFormProps<
   initialState: State;
   onSubmit: (state: State) => void | Promise<void>;
   undoLimit?: number;
-  pushToUndoHistoryDebounce?: number
 };
+
+type HistoryEntry = {
+  path: string;
+  value: any;
+  prevValue: any;
+};
+
+export const defaultUndoLimit = 500
 
 export function createForm<
   Schema extends z.ZodTypeAny,
   State extends z.infer<Schema>,
 >(props: CreateFormProps<Schema, State>): FormContextProps<State> {
-  const [state, setStateInternal] = createSignal(props.initialState);
+  const undoLimit = props.undoLimit ?? defaultUndoLimit
+
   const [fieldMetas, setFieldMetas] = createSignal<
     Record<string, FieldMetaState>
   >({});
-  const undoRedoManager = createUndoRedoManager<State>(props.initialState, props.undoLimit, props.pushToUndoHistoryDebounce)
-  const [isValidating, setIsValidating] = createSignal(false)
-  const [isSubmitting, setIsSubmitting] = createSignal(false)
+
+  const [state, setInternalState] = createSignal(props.initialState);
+  const [undoStack, setUndoStack] = createSignal<HistoryEntry[]>([]);
+  const [redoStack, setRedoStack] = createSignal<HistoryEntry[]>([]);
   const [errors, setErrors] = createSignal<FormixError[]>([]);
+  const [isSubmitting, setIsSubmitting] = createSignal(false)
+  const [isValidating, setIsValidating] = createSignal(false)
 
   const revalidate = async () => {
     setIsValidating(true)
     const validationResult = await props.schema.safeParseAsync(state());
-    setIsValidating(false)
-    return validationResult;
-  };
-
-  revalidate().then((r) => {
-    if (!r.success) {
-      setErrors(formatZodIssues(r.error.issues));
+    if (!validationResult.success) {
+      setErrors(formatZodIssues(validationResult.error.issues));
     } else {
       setErrors([])
     }
-  })
-
-  let setStateCalledByUndoRedoFn = false;
-  const setState = (update: Update<State>) => {
-    const next = getUpdatedValue(state(), update);
-    setStateInternal(next);
-    if (!setStateCalledByUndoRedoFn) {
-      undoRedoManager.setState(next);
-    }
-
-    revalidate().then((r) => {
-      if (!r.success) {
-        setErrors(formatZodIssues(r.error.issues));
-      } else {
-        setErrors([])
-      }
-    })
+    setIsValidating(false)
+    return validationResult;
   };
+  revalidate()
+
+  const setState = (path: string, update: Update<unknown>) => {
+    const currentValue = get(state(), path);
+    const nextValue = getUpdatedValue(currentValue, update)
+    if (nextValue === currentValue) return;
+
+    const entry = {
+      path,
+      value: nextValue,
+      prevValue: currentValue,
+    };
+
+    batch(() => {
+      setUndoStack(prev => [...prev, entry].slice(-undoLimit));
+      setRedoStack([]);
+      setInternalState(prev => path.trim() === "" ? nextValue as State : set(prev, path, nextValue));
+    })
+
+    revalidate()
+  };
+
+  const undo = (steps = 1) => {
+    const entries = undoStack().slice(-steps);
+    if (entries.length === 0) return;
+
+    batch(() => {
+      let newState = state();
+      entries.forEach(entry => {
+        newState = set(newState, entry.path, entry.prevValue);
+      });
+      setInternalState(newState);
+      setUndoStack(prev => prev.slice(0, -steps));
+      setRedoStack(prev => [...entries.reverse(), ...prev]);
+    });
+  };
+
+  const redo = (steps = 1) => {
+    const entries = redoStack().slice(0, steps);
+    if (entries.length === 0) return;
+
+    batch(() => {
+      let newState = state();
+      entries.forEach(entry => {
+        newState = set(newState, entry.path, entry.value);
+      });
+      setInternalState(newState);
+      setRedoStack(prev => prev.slice(steps));
+      setUndoStack(prev => [...prev, ...entries.reverse()]);
+    });
+  };
+
+  const canUndo = (steps = 1) => undoStack().length >= steps;
+  const canRedo = (steps = 1) => redoStack().length >= steps;
 
   const submit = async () => {
     const validationResult = await revalidate();
@@ -162,34 +206,9 @@ export function createForm<
     }
   };
 
-  const undo = (steps = 1) => {
-    setStateCalledByUndoRedoFn = true;
-    undoRedoManager.undo(steps);
-    setState(undoRedoManager.getState());
-    setStateCalledByUndoRedoFn = false;
-  };
-
-  const redo = (steps = 1) => {
-    setStateCalledByUndoRedoFn = true;
-    undoRedoManager.redo(steps);
-    setState(undoRedoManager.getState());
-    setStateCalledByUndoRedoFn = false;
-  };
-
-  const reset = () => setState(props.initialState);
+  const reset = () => setState("", props.initialState);
 
   const wasModified = () => !isEqual(state(), props.initialState);
-
-  const setFieldValue = <F,>(path: string, update: Update<F>) => {
-    setState((currentState) => {
-      const updatedValue = getUpdatedValue(
-        get(currentState, path),
-        update,
-      );
-      const nextState = set(currentState, path, updatedValue);
-      return nextState;
-    });
-  };
 
   const setFieldMeta = (path: string, update: Update<FieldMetaState>) => {
     const currentMeta = fieldMetas()[path] ?? defaultFieldMetaState;
@@ -204,14 +223,11 @@ export function createForm<
     return _isFieldRequired(props.schema, path, variant)
   }
 
-  const initialState = () => props.initialState
-
   return {
-    initialState,
+    initialState: props.initialState,
     formSchema: props.schema,
     isFieldRequired,
     setFieldMeta,
-    setFieldValue,
     state,
     setState,
     isValidating,
@@ -223,8 +239,8 @@ export function createForm<
     submit,
     undo,
     redo,
-    canUndo: undoRedoManager.canUndo,
-    canRedo: undoRedoManager.canRedo,
+    canUndo,
+    canRedo,
     wasModified,
   };
 }
@@ -280,18 +296,18 @@ export function useField<T>(path: string): FieldContext<T> {
 
   const wasModified = createMemo(() => {
     const currentState = get(form.state(), path);
-    const initialState = get(form.initialState(), path);
+    const initialState = get(form.initialState, path);
 
     return !isEqual(currentState, initialState);
   });
 
   const reset = () => {
-    const initialValue = get(form.initialState(), path);
+    const initialValue = get(form.initialState, path);
     if (!initialValue) return;
-    form.setFieldValue(path, initialValue);
+    form.setState(path, initialValue);
   };
 
-  const setValue = (update: Update<T>) => form.setFieldValue(path, update);
+  const setValue = (update: Update<T>) => form.setState(path, update);
   const setMeta = (update: Update<FieldMetaState>) =>
     form.setFieldMeta(path, update);
 

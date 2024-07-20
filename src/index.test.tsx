@@ -26,7 +26,7 @@ describe("Form Initialization", () => {
 
     await waitFor(() => {
       expect(form.state()).toEqual(initialState);
-      expect(form.initialState()).toEqual(initialState);
+      expect(form.initialState).toEqual(initialState);
     })
   });
 
@@ -50,7 +50,7 @@ describe("Form Initialization", () => {
 
     expect(form.state()).toEqual(initialState);
 
-    form.setState({
+    form.setState("", {
       name: "Jane",
       age: 30,
     });
@@ -66,7 +66,7 @@ describe("Form Initialization", () => {
         age: 25,
       });
 
-      expect(form.initialState()).toEqual({
+      expect(form.initialState).toEqual({
         name: "John",
         age: 25,
       });
@@ -184,12 +184,12 @@ describe("createForm", () => {
   });
 
   it("should update state correctly", async () => {
-    form.setState({ name: "John", age: 25 });
+    form.setState("", { name: "John", age: 25 });
     expect(form.state()).toEqual({ name: "John", age: 25 });
   });
 
   it("should validate the form state", async () => {
-    form.setState({ name: "Jo", age: 17 });
+    form.setState("", { name: "Jo", age: 17 });
     await waitFor(() => {
       expect(form.errors()).toEqual([
         {
@@ -205,41 +205,25 @@ describe("createForm", () => {
   });
 
   it("should call onSubmit when form is valid", async () => {
-    form.setState({ name: "John", age: 25 });
+    form.setState("", { name: "John", age: 25 });
     await form.submit();
     expect(onSubmit).toHaveBeenCalledWith({ name: "John", age: 25 });
   });
 
   it("should not call onSubmit when form is invalid", async () => {
-    form.setState({ name: "Jo", age: 17 });
+    form.setState("", { name: "Jo", age: 17 });
     await form.submit();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("should reset the form state", async () => {
-    form.setState({ name: "John", age: 25 });
+    form.setState("", { name: "John", age: 25 });
     form.reset();
     expect(form.state()).toEqual(initialState);
   });
 
-  it("should handle undo and redo operations", async () => {
-    form.setState({ name: "John", age: 25 });
-    await new Promise((res) => setTimeout(res, 700))
-
-    form.setState({ name: "Jane", age: 30 });
-    await new Promise((res) => setTimeout(res, 700))
-
-    expect(form.canUndo()).toBe(true);
-    form.undo();
-    expect(form.state()).toEqual({ name: "John", age: 25 });
-
-    expect(form.canRedo()).toBe(true);
-    form.redo();
-    expect(form.state()).toEqual({ name: "Jane", age: 30 });
-  });
-
   it("should update field value correctly", async () => {
-    form.setFieldValue("name", "Alice");
+    form.setState("name", "Alice");
     expect(form.state()?.name).toBe("Alice");
   });
 
@@ -253,7 +237,7 @@ describe("createForm", () => {
 
   it("should detect if form was modified", async () => {
     expect(form.wasModified()).toBe(false);
-    form.setState({ name: "John", age: 25 });
+    form.setState("", { name: "John", age: 25 });
     expect(form.wasModified()).toBe(true);
   });
 
@@ -270,8 +254,8 @@ describe("createForm", () => {
       onSubmit: vi.fn(),
     });
 
-    nestedForm.setFieldValue("user.name", "John");
-    nestedForm.setFieldValue("user.email", "john@example.com");
+    nestedForm.setState("user.name", "John");
+    nestedForm.setState("user.email", "john@example.com");
 
     expect(nestedForm.state()).toEqual({
       user: { name: "John", email: "john@example.com" },
@@ -288,48 +272,11 @@ describe("createForm", () => {
       onSubmit: vi.fn(),
     });
 
-    arrayForm.setFieldValue("tags", ["tag1", "tag2"]);
+    arrayForm.setState("tags", ["tag1", "tag2"]);
     expect(arrayForm.state()).toEqual({ tags: ["tag1", "tag2"] });
 
-    arrayForm.setFieldValue("tags.0", "updatedTag");
+    arrayForm.setState("tags.0", "updatedTag");
     expect(arrayForm.state()).toEqual({ tags: ["updatedTag", "tag2"] });
-  });
-
-  it("should handle multiple undo/redo operations", async () => {
-    form.setState({ name: "John", age: 25 });
-    await new Promise((res) => setTimeout(res, 700))
-    form.setState({ name: "Jane", age: 30 });
-    await new Promise((res) => setTimeout(res, 700))
-    form.setState({ name: "Bob", age: 35 });
-    await new Promise((res) => setTimeout(res, 700))
-
-    form.undo(2);
-    expect(form.state()).toEqual({ name: "John", age: 25 });
-
-    form.redo();
-    expect(form.state()).toEqual({ name: "Jane", age: 30 });
-
-    expect(form.canUndo()).toBe(true);
-    expect(form.canRedo()).toBe(true);
-  });
-
-  it("should handle edge cases in undo/redo", async () => {
-    expect(form.canUndo()).toBe(false);
-    expect(form.canRedo()).toBe(false);
-
-    form.setState({ name: "John", age: 25 });
-    await new Promise((res) => setTimeout(res, 700))
-
-    expect(form.canUndo()).toBe(true);
-    expect(form.canRedo()).toBe(false);
-
-    form.undo();
-    expect(form.canUndo()).toBe(false);
-    expect(form.canRedo()).toBe(true);
-
-    form.redo();
-    expect(form.canUndo()).toBe(true);
-    expect(form.canRedo()).toBe(false);
   });
 
   it("should handle async onSubmit", async () => {
@@ -340,7 +287,7 @@ describe("createForm", () => {
       onSubmit: asyncOnSubmit,
     });
 
-    asyncForm.setState({ name: "John", age: 25 });
+    asyncForm.setState("", { name: "John", age: 25 });
     await asyncForm.submit();
 
     expect(asyncOnSubmit).toHaveBeenCalledWith({ name: "John", age: 25 });
@@ -362,7 +309,7 @@ describe("createForm", () => {
       initialState: { password: "", confirmPassword: "" },
       onSubmit: vi.fn(),
     });
-    form.setState({ password: "pass123", confirmPassword: "pass456" });
+    form.setState("", { password: "pass123", confirmPassword: "pass456" });
     await waitFor(() => {
       expect(form.errors()).toEqual([
         {
@@ -390,7 +337,7 @@ describe("createForm", () => {
       onSubmit: vi.fn(),
     });
 
-    customForm.setFieldValue("username", "taken");
+    customForm.setState("username", "taken");
     await customForm.submit();
 
     expect(customForm.errors()).toEqual([
@@ -399,6 +346,60 @@ describe("createForm", () => {
         message: "Username is already taken",
       },
     ] satisfies FormixError[]);
+  });
+
+  it('should allow undo/redo and respect undoLimit', async () => {
+    const form = createForm({
+      undoLimit: 3,
+      initialState: 0,
+      schema: z.number(),
+      onSubmit: vi.fn()
+    });
+    form.setState("", 1);
+    form.setState("", 2);
+    form.setState("", 3);
+    form.setState("", 4);
+    expect(form.state()).toBe(4);
+    form.undo();
+    expect(form.state()).toBe(3);
+    form.undo();
+    expect(form.state()).toBe(2);
+    form.undo();
+    expect(form.state()).toBe(2);
+  });
+
+  it('should handle multi-step undo/redo', async () => {
+    const form = createForm({
+      initialState: 0,
+      schema: z.number(),
+      onSubmit: vi.fn()
+    });
+    form.setState("", 1);
+    form.setState("", 2);
+    form.setState("", 3);
+
+    form.undo(2);
+    expect(form.state()).toBe(1);
+    form.redo(2);
+    expect(form.state()).toBe(3);
+  });
+
+  it('should handle undo after new states', async () => {
+    const form = createForm({
+      initialState: 0,
+      schema: z.number(),
+      onSubmit: vi.fn()
+    });
+    form.setState("", 1);
+    form.setState("", 2);
+
+    form.undo();
+    form.setState("", 3);
+    expect(form.state()).toBe(3);
+    form.undo();
+    expect(form.state()).toBe(1);
+    form.redo();
+    expect(form.state()).toBe(3);
   });
 });
 

@@ -1,6 +1,5 @@
 import { type ZodIssue, type ZodTypeAny, ZodObject, ZodArray, ZodOptional, ZodNullable } from "zod";
 import type { FormixError, Update } from ".";
-import { createSignal } from 'solid-js';
 
 export function isEqual(a: any, b: any): boolean {
   if (a === b) return true;
@@ -41,49 +40,6 @@ export function isEqual(a: any, b: any): boolean {
   }
 
   return false;
-}
-
-export function createUndoRedoManager<T>(
-  initialState: T,
-  maxHistorySize = 500,
-  historyPushDebounce = 500,
-) {
-  const [history, setHistory] = createSignal<T[]>([initialState]);
-  const [index, setIndex] = createSignal(0);
-
-  let timer: Timer | undefined = undefined
-  const setState = (newState: T) => {
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-      setHistory(prev => {
-        const newHistory = [...prev.slice(0, index() + 1), newState];
-        return newHistory.slice(-maxHistorySize);
-      });
-      setIndex(prev => Math.min(prev + 1, maxHistorySize - 1));
-    }, historyPushDebounce)
-  };
-
-  const undo = (steps = 1) => {
-    setIndex(prev => Math.max(prev - steps, 0));
-  };
-
-  const redo = (steps = 1) => {
-    setIndex(prev => Math.min(prev + steps, history().length - 1));
-  };
-
-  const canUndo = (steps = 1) => index() >= steps;
-  const canRedo = (steps = 1) => index() + steps < history().length;
-
-  const getState = () => history()[index()]!;
-
-  return {
-    setState,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    getState,
-  };
 }
 
 export function get<T = any>(obj: any, path: string): T | undefined {

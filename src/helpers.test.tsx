@@ -1,6 +1,6 @@
-import { z, type ZodTypeAny } from 'zod';
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createUndoRedoManager, get, isEqual, set, isFieldRequired, type NullOrOptional } from "./helpers";
+import { z } from 'zod';
+import { describe, expect, it, vi } from "vitest";
+import { get, isEqual, set, isFieldRequired } from "./helpers";
 
 describe("isEqual", () => {
   it("should return true for identical primitives", () => {
@@ -294,94 +294,6 @@ describe("set", () => {
     const arr = [1, 2, 3];
     const result = set(arr, "3.0", 4);
     expect(result).toEqual([1, 2, 3, [4]]);
-  });
-});
-
-describe("createUndoRedoManager", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  it("should initialize with the initial state", () => {
-    const manager = createUndoRedoManager(0);
-    expect(manager.getState()).toBe(0);
-  });
-
-  it("should update state and allow undo/redo", async () => {
-    const manager = createUndoRedoManager(0);
-    manager.setState(1);
-    await vi.runAllTimersAsync();
-    manager.setState(2);
-    await vi.runAllTimersAsync();
-    expect(manager.getState()).toBe(2);
-    manager.undo();
-    expect(manager.getState()).toBe(1);
-    manager.redo();
-    expect(manager.getState()).toBe(2);
-  });
-
-  it("should respect maxHistorySize", async () => {
-    const manager = createUndoRedoManager(0, 3);
-    manager.setState(1);
-    await vi.runAllTimersAsync();
-    manager.setState(2);
-    await vi.runAllTimersAsync();
-    manager.setState(3);
-    await vi.runAllTimersAsync();
-    manager.setState(4);
-    await vi.runAllTimersAsync();
-    expect(manager.getState()).toBe(4);
-    manager.undo();
-    expect(manager.getState()).toBe(3);
-    manager.undo();
-    expect(manager.getState()).toBe(2);
-    manager.undo();
-    expect(manager.getState()).toBe(2);
-  });
-
-  it("should handle multiple undo/redo steps", async () => {
-    const manager = createUndoRedoManager(0);
-    manager.setState(1);
-    await vi.runAllTimersAsync();
-    manager.setState(2);
-    await vi.runAllTimersAsync();
-    manager.setState(3);
-    await vi.runAllTimersAsync();
-    manager.undo(2);
-    expect(manager.getState()).toBe(1);
-    manager.redo(2);
-    expect(manager.getState()).toBe(3);
-  });
-
-  it("should correctly report canUndo/canRedo", async () => {
-    const manager = createUndoRedoManager(0);
-    expect(manager.canUndo()).toBe(false);
-    expect(manager.canRedo()).toBe(false);
-
-    manager.setState(1);
-    await vi.runAllTimersAsync();
-    expect(manager.canUndo()).toBe(true);
-    expect(manager.canRedo()).toBe(false);
-
-    manager.undo();
-    expect(manager.canUndo()).toBe(false);
-    expect(manager.canRedo()).toBe(true);
-  });
-
-  it("should handle undo after new states", async () => {
-    const manager = createUndoRedoManager(0);
-    manager.setState(1);
-    await vi.runAllTimersAsync();
-    manager.setState(2);
-    await vi.runAllTimersAsync();
-    manager.undo();
-    manager.setState(3);
-    await vi.runAllTimersAsync();
-    expect(manager.getState()).toBe(3);
-    manager.undo();
-    expect(manager.getState()).toBe(1);
-    manager.redo();
-    expect(manager.getState()).toBe(3);
   });
 });
 
