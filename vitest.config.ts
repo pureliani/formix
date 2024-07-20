@@ -4,7 +4,6 @@ import solidPlugin from 'vite-plugin-solid';
 export default defineConfig({
   plugins: [solidPlugin()],
   test: {
-    reporters: ["default"],
     coverage: {
       provider: "v8",
     },

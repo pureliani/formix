@@ -377,7 +377,6 @@ describe("createForm", () => {
     form.setState("", 1);
     form.setState("", 2);
     form.setState("", 3);
-
     form.undo(2);
     expect(form.state()).toBe(1);
     form.redo(2);

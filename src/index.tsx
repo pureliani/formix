@@ -142,20 +142,26 @@ export function createForm<
   revalidate()
 
   const setState = (path: string, update: Update<unknown>) => {
-    const currentValue = get(state(), path);
+    const currentState = state();
+    const currentValue = path.trim() === "" ? currentState : get(currentState, path);
     const nextValue = getUpdatedValue(currentValue, update)
     if (nextValue === currentValue) return;
 
-    const entry = {
+    const entry: HistoryEntry = {
       path,
       value: nextValue,
       prevValue: currentValue,
     };
 
     batch(() => {
-      setUndoStack(prev => [...prev, entry].slice(-undoLimit));
+      setUndoStack(prev => {
+        const newStack = [...prev, entry];
+        return newStack.slice(-undoLimit);
+      });
       setRedoStack([]);
-      setInternalState(prev => path.trim() === "" ? nextValue as State : set(prev, path, nextValue));
+      setInternalState(prevState =>
+        path.trim() === "" ? nextValue as State : set(prevState, path, nextValue)
+      );
     })
 
     revalidate()
@@ -167,13 +173,20 @@ export function createForm<
 
     batch(() => {
       let newState = state();
-      entries.forEach(entry => {
-        newState = set(newState, entry.path, entry.prevValue);
+      entries.reverse().forEach(entry => {
+        newState = entry.path.trim() === ""
+          ? entry.prevValue as State
+          : set(newState, entry.path, entry.prevValue);
       });
       setInternalState(newState);
       setUndoStack(prev => prev.slice(0, -steps));
-      setRedoStack(prev => [...entries.reverse(), ...prev]);
+      setRedoStack(prev => {
+        const newStack = [...entries.reverse(), ...prev];
+        return newStack.slice(0, undoLimit);
+      });
     });
+
+    revalidate();
   };
 
   const redo = (steps = 1) => {
@@ -183,12 +196,19 @@ export function createForm<
     batch(() => {
       let newState = state();
       entries.forEach(entry => {
-        newState = set(newState, entry.path, entry.value);
+        newState = entry.path.trim() === ""
+          ? entry.value as State
+          : set(newState, entry.path, entry.value);
       });
       setInternalState(newState);
       setRedoStack(prev => prev.slice(steps));
-      setUndoStack(prev => [...prev, ...entries.reverse()]);
+      setUndoStack(prev => {
+        const newStack = [...prev, ...entries];
+        return newStack.slice(-undoLimit);
+      });
     });
+
+    revalidate();
   };
 
   const canUndo = (steps = 1) => undoStack().length >= steps;
