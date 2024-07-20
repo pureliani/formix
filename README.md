@@ -22,6 +22,8 @@ bun add @gapu/formix zod
 
 Now you're ready to start using @gapu/formix in your SolidJS project!
 
+## [See the usage example](https://stackblitz.com/edit/solidjs-templates-jvzbio?file=src%2FApp.tsx)
+
 ### Table of contents
 - [Form initialization](#form-initialization)
   - [Parameters](#parameters)
