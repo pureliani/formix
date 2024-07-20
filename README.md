@@ -93,7 +93,7 @@ const formContext = createForm({
 * `formSchema`: Zod schema used for the form validation.
 * `isFieldRequired`: A function to check if a field is required, given its path and optional variant.
 * `state`: A signal containing the current form state.
-* `setState`: A function to update the form state.
+* `setState`: A function to update the form state (use empty path: `""` to update entire form state).
 * `isValidating`: A function to check if the form is currently being validated by zod.
 * `isSubmitting`: A function to check if the form is currently being submitted.
 * `fieldMetas`: A signal containing metadata for all fields.
@@ -107,7 +107,6 @@ const formContext = createForm({
 * `canRedo`: A function that returns whether a redo operation is possible.
 * `wasModified`: A function that returns whether the form state has been modified from its initial state.
 * `setFieldMeta`: A function to update metadata for a specific field.
-* `setFieldValue`: A function to update the value of a specific field.
 
 ### Example usage
 ```ts
@@ -122,7 +121,7 @@ const formContext = createForm({
 const currentState = formContext.state();
 
 // Update form state
-await formContext.setState(newState);
+formContext.setState("", newState);
 
 // Check if form is currently submitting
 const isSubmitting = formContext.isSubmitting();
@@ -132,14 +131,11 @@ const formErrors = formContext.errors();
 
 // Undo last change
 if (formContext.canUndo()) {
-  await formContext.undo();
+  formContext.undo();
 }
 
 // Check if a specific field is required
 const isNameRequired = formContext.isFieldRequired('name');
-
-// Update a specific field's value
-await formContext.setFieldValue('email', 'new@example.com');
 ```
 
 ## Form Component
@@ -245,7 +241,7 @@ const MyFormComponent = () => {
 * `formSchema`: Zod schema used for the form validation.
 * `isFieldRequired`: A function to check if a field is required, given its path and optional variant.
 * `state`: A signal containing the current form state.
-* `setState`: A function to update the form state.
+* `setState`: A function to update the form state (use empty path: `""` to update entire form state).
 * `isValidating`: A function to check if the form is currently being validated by zod.
 * `isSubmitting`: A function to check if the form is currently being submitted.
 * `fieldMetas`: A signal containing metadata for all fields.
@@ -259,7 +255,6 @@ const MyFormComponent = () => {
 * `canRedo`: A function that returns whether a redo operation is possible.
 * `wasModified`: A function that returns whether the form state has been modified from its initial state.
 * `setFieldMeta`: A function to update metadata for a specific field.
-* `setFieldValue`: A function to update the value of a specific field.
 
 ### Example
 ```tsx
