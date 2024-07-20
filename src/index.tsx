@@ -142,8 +142,7 @@ export function createForm<
   revalidate()
 
   const setState = (path: string, update: Update<unknown>) => {
-    const currentState = state();
-    const currentValue = path.trim() === "" ? currentState : get(currentState, path);
+    const currentValue = get(state(), path);
     const nextValue = getUpdatedValue(currentValue, update)
     if (nextValue === currentValue) return;
 
@@ -154,10 +153,7 @@ export function createForm<
     };
 
     batch(() => {
-      setUndoStack(prev => {
-        const newStack = [...prev, entry];
-        return newStack.slice(-undoLimit);
-      });
+      setUndoStack(prev => [...prev, entry].slice(-undoLimit));
       setRedoStack([]);
       setInternalState(prevState =>
         path.trim() === "" ? nextValue as State : set(prevState, path, nextValue)

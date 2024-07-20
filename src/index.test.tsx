@@ -359,13 +359,18 @@ describe("createForm", () => {
     form.setState("", 2);
     form.setState("", 3);
     form.setState("", 4);
+    form.setState("", 5);
+    expect(form.state()).toBe(5);
+    form.undo();
     expect(form.state()).toBe(4);
     form.undo();
     expect(form.state()).toBe(3);
     form.undo();
     expect(form.state()).toBe(2);
+
     form.undo();
     expect(form.state()).toBe(2);
+    expect(form.state()).not.toBe(1);
   });
 
   it('should handle multi-step undo/redo', async () => {
