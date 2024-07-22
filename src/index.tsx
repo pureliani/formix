@@ -18,6 +18,7 @@ import {
   set,
   type NullOrOptional,
 } from "./helpers";
+import { createStore, produce, unwrap } from "solid-js/store";
 
 export type { NullOrOptional }
 export type Update<T, R = T> = R | ((prev: T) => R);
@@ -121,28 +122,30 @@ export function createForm<
     Record<string, FieldMetaState>
   >({});
 
-  const [state, setInternalState] = createSignal(props.initialState);
-  const [undoStack, setUndoStack] = createSignal<HistoryEntry[]>([]);
-  const [redoStack, setRedoStack] = createSignal<HistoryEntry[]>([]);
-  const [errors, setErrors] = createSignal<FormixError[]>([]);
-  const [isSubmitting, setIsSubmitting] = createSignal(false)
-  const [isValidating, setIsValidating] = createSignal(false)
+  const [store, setStore] = createStore({
+    state: props.initialState,
+    undoStack: [] as HistoryEntry[],
+    redoStack: [] as HistoryEntry[],
+    errors: [] as FormixError[],
+    isSubmitting: false,
+    isValidating: false
+  })
 
   const revalidate = async () => {
-    setIsValidating(true)
-    const validationResult = await props.schema.safeParseAsync(state());
+    setStore("isValidating", true)
+    const validationResult = await props.schema.safeParseAsync(unwrap(store.state));
     if (!validationResult.success) {
-      setErrors(formatZodIssues(validationResult.error.issues));
+      setStore("errors", formatZodIssues(validationResult.error.issues))
     } else {
-      setErrors([])
+      setStore("errors", [])
     }
-    setIsValidating(false)
+    setStore("isValidating", false)
     return validationResult;
   };
   revalidate()
 
   const setState = (path: string, update: Update<unknown>) => {
-    const currentValue = get(state(), path);
+    const currentValue = get(unwrap(store.state), path);
     const nextValue = getUpdatedValue(currentValue, update)
     if (nextValue === currentValue) return;
 
@@ -152,79 +155,73 @@ export function createForm<
       prevValue: currentValue,
     };
 
-    batch(() => {
-      setUndoStack(prev => [...prev, entry].slice(-undoLimit));
-      setRedoStack([]);
-      setInternalState(prevState =>
-        path.trim() === "" ? nextValue as State : set(prevState, path, nextValue)
-      );
-    })
+    setStore(produce(current => {
+      current.undoStack = [...current.undoStack, entry].slice(-undoLimit)
+      current.redoStack = []
+      current.state = path.trim() === "" ? nextValue as State : set(current.state, path, nextValue)
+    }))
 
     revalidate()
   };
 
   const undo = (steps = 1) => {
-    const entries = undoStack().slice(-steps);
+    const entries = store.undoStack.slice(-steps);
     if (entries.length === 0) return;
 
-    batch(() => {
-      let newState = state();
+    setStore(produce(current => {
+      current.undoStack = current.undoStack.slice(0, -steps)
+      current.redoStack = [...entries.reverse(), ...current.redoStack].slice(0, undoLimit)
+
+      let newState = current.state;
       entries.reverse().forEach(entry => {
         newState = entry.path.trim() === ""
           ? entry.prevValue as State
           : set(newState, entry.path, entry.prevValue);
       });
-      setInternalState(newState);
-      setUndoStack(prev => prev.slice(0, -steps));
-      setRedoStack(prev => {
-        const newStack = [...entries.reverse(), ...prev];
-        return newStack.slice(0, undoLimit);
-      });
-    });
+      current.state = newState
+    }))
 
     revalidate();
   };
 
   const redo = (steps = 1) => {
-    const entries = redoStack().slice(0, steps);
+    const entries = store.redoStack.slice(0, steps);
     if (entries.length === 0) return;
 
-    batch(() => {
-      let newState = state();
+    setStore(produce(current => {
+      current.redoStack = current.redoStack.slice(steps)
+      current.undoStack = [...current.undoStack, ...entries].slice(-undoLimit)
+
+      let newState = current.state;
       entries.forEach(entry => {
         newState = entry.path.trim() === ""
           ? entry.value as State
           : set(newState, entry.path, entry.value);
       });
-      setInternalState(newState);
-      setRedoStack(prev => prev.slice(steps));
-      setUndoStack(prev => {
-        const newStack = [...prev, ...entries];
-        return newStack.slice(-undoLimit);
-      });
-    });
+      current.state = newState
+    }))
 
     revalidate();
   };
 
-  const canUndo = (steps = 1) => undoStack().length >= steps;
-  const canRedo = (steps = 1) => redoStack().length >= steps;
+  const canUndo = (steps = 1) => store.undoStack.length >= steps;
+  const canRedo = (steps = 1) => store.redoStack.length >= steps;
 
   const submit = async () => {
     const validationResult = await revalidate();
     if (!validationResult.success) return;
 
     try {
-      setIsSubmitting(true)
+      setStore("isSubmitting", true)
       await props.onSubmit(validationResult.data);
     } finally {
-      setIsSubmitting(false)
+      setStore("isSubmitting", false)
     }
   };
 
   const reset = () => setState("", props.initialState);
 
-  const wasModified = () => !isEqual(state(), props.initialState);
+  const wasModified = () => !isEqual(store.state, props.initialState);
 
   const setFieldMeta = (path: string, update: Update<FieldMetaState>) => {
     const currentMeta = fieldMetas()[path] ?? defaultFieldMetaState;
@@ -238,6 +235,11 @@ export function createForm<
   const isFieldRequired = (path: string, variant?: NullOrOptional[]) => {
     return _isFieldRequired(props.schema, path, variant)
   }
+
+  const state = () => store.state
+  const isValidating = () => store.isValidating
+  const isSubmitting = () => store.isSubmitting
+  const errors = () => store.errors
 
   return {
     initialState: props.initialState,
