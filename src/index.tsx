@@ -1,7 +1,6 @@
 import type { z } from "zod";
 
 import {
-  batch,
   createContext,
   createMemo,
   createSignal,
@@ -18,7 +17,7 @@ import {
   set,
   type NullOrOptional,
 } from "./helpers";
-import { createStore, produce, unwrap } from "solid-js/store";
+import { createStore, produce } from "solid-js/store";
 
 export type { NullOrOptional }
 export type Update<T, R = T> = R | ((prev: T) => R);
@@ -133,7 +132,7 @@ export function createForm<
 
   const revalidate = async () => {
     setStore("isValidating", true)
-    const validationResult = await props.schema.safeParseAsync(unwrap(store.state));
+    const validationResult = await props.schema.safeParseAsync(store.state);
     if (!validationResult.success) {
       setStore("errors", formatZodIssues(validationResult.error.issues))
     } else {
@@ -145,17 +144,16 @@ export function createForm<
   revalidate()
 
   const setState = (path: string, update: Update<unknown>) => {
-    const currentValue = get(unwrap(store.state), path);
-    const nextValue = getUpdatedValue(currentValue, update)
-    if (nextValue === currentValue) return;
-
-    const entry: HistoryEntry = {
-      path,
-      value: nextValue,
-      prevValue: currentValue,
-    };
-
     setStore(produce(current => {
+      const currentValue = get(current.state, path);
+      const nextValue = getUpdatedValue(currentValue, update)
+
+      const entry: HistoryEntry = {
+        path,
+        value: nextValue,
+        prevValue: currentValue,
+      };
+
       current.undoStack = [...current.undoStack, entry].slice(-undoLimit)
       current.redoStack = []
       current.state = path.trim() === "" ? nextValue as State : set(current.state, path, nextValue)
@@ -170,7 +168,7 @@ export function createForm<
 
     setStore(produce(current => {
       current.undoStack = current.undoStack.slice(0, -steps)
-      current.redoStack = [...entries.reverse(), ...current.redoStack].slice(0, undoLimit)
+      current.redoStack = [...entries, ...current.redoStack].slice(0, undoLimit)
 
       let newState = current.state;
       entries.reverse().forEach(entry => {
