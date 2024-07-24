@@ -473,19 +473,29 @@ describe('useForm Hook', () => {
 });
 
 describe('useField Hook', () => {
-  const schema = z.object({
-    name: z.string(),
-    age: z.number(),
-    isActive: z.boolean(),
-  });
 
-  const initialState = {
-    name: 'John Doe',
-    age: 30,
-    isActive: true,
-  };
 
-  const onSubmit = vi.fn();
+
+
+  let schema: any;
+
+  let initialState: any;
+
+  let onSubmit: any;
+
+  beforeEach(() => {
+    schema = z.object({
+      name: z.string(),
+      age: z.number(),
+      isActive: z.boolean(),
+    })
+    initialState = {
+      name: 'John Doe',
+      age: 30,
+      isActive: true,
+    }
+    onSubmit = vi.fn()
+  })
 
   function TestComponent({ path }: { path: string }) {
     const field = useField(path);
@@ -620,17 +630,22 @@ describe('useField Hook', () => {
     })
   });
 
-
   describe('useArrayField Hook', () => {
-    const schema = z.object({
-      items: z.array(z.string()),
-    });
+    let schema: any;
 
-    const initialState = {
-      items: ['item1', 'item2', 'item3'],
-    };
+    let initialState: any;
 
-    const onSubmit = vi.fn();
+    let onSubmit: any;
+
+    beforeEach(() => {
+      schema = z.object({
+        items: z.array(z.string()),
+      })
+      initialState = {
+        items: ['item1', 'item2', 'item3'],
+      }
+      onSubmit = vi.fn()
+    })
 
     function TestComponent() {
       const arrayField = useArrayField<string>('items');

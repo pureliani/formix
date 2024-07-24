@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { describe, expect, it, vi } from "vitest";
-import { get, isEqual, set, isFieldRequired } from "./helpers";
+import { get, isEqual, setMut, isFieldRequired } from "./helpers";
 
 describe("isEqual", () => {
   it("should return true for identical primitives", () => {
@@ -136,163 +136,121 @@ describe("get", () => {
 describe("set", () => {
   it("should set a value on a simple object", () => {
     const obj = { a: 1 };
-    const result = set(obj, "b", 2);
+    const result = setMut(obj, "b", 2);
     expect(result).toEqual({ a: 1, b: 2 });
-    expect(obj).toEqual({ a: 1 });
+    expect(obj).toEqual({ a: 1, b: 2 });
   });
 
   it("should update an existing value", () => {
     const obj = { a: 1, b: 2 };
-    const result = set(obj, "b", 3);
+    const result = setMut(obj, "b", 3);
     expect(result).toEqual({ a: 1, b: 3 });
   });
 
   it("should set a nested value", () => {
     const obj = { a: { b: 1 } };
-    const result = set(obj, "a.c", 2);
+    const result = setMut(obj, "a.c", 2);
     expect(result).toEqual({ a: { b: 1, c: 2 } });
   });
 
-  it('should create a new object immutably when setting a nested property', () => {
-    const x = {
-      a: {
-        b: {
-          c: 1
-        }
-      },
-      d: {
-        e: {
-          f: 2
-        }
-      }
-    };
-
-    const beforeSet = JSON.parse(JSON.stringify(x));
-    const result = set(x, "a.b.c", 4);
-
-    expect(x).toEqual(beforeSet);
-    expect(x.a.b.c).toBe(1);
-
-    expect(result).toEqual({
-      a: {
-        b: {
-          c: 4
-        }
-      },
-      d: {
-        e: {
-          f: 2
-        }
-      }
-    });
-
-    expect(result).not.toBe(x);
-
-    expect(result.a).not.toBe(x.a);
-    expect(result.a.b).not.toBe(x.a.b);
-
-    expect(result.d).toBe(x.d);
-  })
-
   it("should create nested objects if they don't exist", () => {
     const obj = {};
-    const result = set(obj, "a.b.c", 1);
+    const result = setMut(obj, "a.b.c", 1);
     expect(result).toEqual({ a: { b: { c: 1 } } });
   });
 
   it("should work with arrays", () => {
     const obj = { users: ["Alice", "Bob"] };
-    const result = set(obj, "users.1", "Charlie");
+    const result = setMut(obj, "users.1", "Charlie");
     expect(result).toEqual({ users: ["Alice", "Charlie"] });
   });
 
   it("should create arrays if necessary", () => {
     const obj = {};
-    const result = set(obj, "users.0", "Alice");
+    const result = setMut(obj, "users.0", "Alice");
     expect(result).toEqual({ users: ["Alice"] });
   });
 
   it("should return the same object if path is empty", () => {
     const obj = { a: 1 };
-    const result = set(obj, "", 2);
+    const result = setMut(obj, "", 2);
     expect(result).toEqual({ a: 1 });
   });
 
   it("should handle non-object values", () => {
     const value = 42;
-    const result = set(value, "a.b", 2);
+    const result = setMut(value, "a.b", 2);
     expect(result).toBe(42);
   });
 
   it("should throw an error for path with empty key", () => {
     const obj = { a: 1 };
-    expect(() => set(obj, "a..b", 2)).toThrow(
+    expect(() => setMut(obj, "a..b", 2)).toThrow(
       "@gapu/formix: failed to update nested property, empty key at index 1",
     );
   });
 
   it("should throw an error for path starting with a dot", () => {
     const obj = { a: 1 };
-    expect(() => set(obj, ".a.b", 2)).toThrow(
+    expect(() => setMut(obj, ".a.b", 2)).toThrow(
       "@gapu/formix: failed to update nested property, empty key at index 0",
     );
   });
 
   it("should throw an error for path ending with a dot", () => {
     const obj = { a: 1 };
-    expect(() => set(obj, "a.b.", 2)).toThrow(
+    expect(() => setMut(obj, "a.b.", 2)).toThrow(
       "@gapu/formix: failed to update nested property, empty key at index 2",
     );
   });
 
   it("should throw an error for path with consecutive dots", () => {
     const obj = { a: 1 };
-    expect(() => set(obj, "a...b", 2)).toThrow(
+    expect(() => setMut(obj, "a...b", 2)).toThrow(
       "@gapu/formix: failed to update nested property, empty key at index 1",
     );
   });
 
   it("should not throw an error for valid paths", () => {
     const obj = { a: 1 };
-    expect(() => set(obj, "a.b", 2)).not.toThrow();
-    expect(() => set(obj, "c", 3)).not.toThrow();
-    expect(() => set(obj, "d.1", 3)).not.toThrow();
+    expect(() => setMut(obj, "a.b", 2)).not.toThrow();
+    expect(() => setMut(obj, "c", 3)).not.toThrow();
+    expect(() => setMut(obj, "d.1", 3)).not.toThrow();
   });
 
   it("should set a value in a root array", () => {
     const arr = [1, 2, 3];
-    const result = set(arr, "1", 4);
+    const result = setMut(arr, "1", 4);
     expect(result).toEqual([1, 4, 3]);
-    expect(arr).toEqual([1, 2, 3]);
   });
 
   it("should add a value to a root array", () => {
     const arr = [1, 2, 3];
-    const result = set(arr, "3", 4);
+    const result = setMut(arr, "3", 4);
     expect(result).toEqual([1, 2, 3, 4]);
   });
 
   it("should create nested objects in a root array", () => {
     const arr = [1, 2, 3];
-    const result = set(arr, "3.a.b", 4);
+    const result = setMut(arr, "3.a.b", 4);
     expect(result).toEqual([1, 2, 3, { a: { b: 4 } }]);
   });
 
   it("should update nested values in a root array", () => {
     const arr = [1, { a: 2 }, 3];
-    const result = set(arr, "1.a", 4);
+    const result = setMut(arr, "1.a", 4);
     expect(result).toEqual([1, { a: 4 }, 3]);
   });
 
   it("should handle out-of-bounds indices in a root array", () => {
     const arr = [1, 2, 3];
-    const result = set(arr, "5", 4);
+    const result = setMut(arr, "5", 4);
     expect(result).toEqual([1, 2, 3, undefined, undefined, 4]);
   });
 
   it("should create a nested array in a root array", () => {
     const arr = [1, 2, 3];
-    const result = set(arr, "3.0", 4);
+    const result = setMut(arr, "3.0", 4);
     expect(result).toEqual([1, 2, 3, [4]]);
   });
 });

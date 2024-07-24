@@ -14,7 +14,7 @@ import {
   getUpdatedValue,
   isEqual,
   isFieldRequired as _isFieldRequired,
-  set,
+  setMut,
   type NullOrOptional,
 } from "./helpers";
 import { createStore, produce } from "solid-js/store";
@@ -122,7 +122,7 @@ export function createForm<
   >({});
 
   const [store, setStore] = createStore({
-    state: props.initialState,
+    state: structuredClone(props.initialState),
     undoStack: [] as HistoryEntry[],
     redoStack: [] as HistoryEntry[],
     errors: [] as FormixError[],
@@ -156,7 +156,11 @@ export function createForm<
 
       current.undoStack = [...current.undoStack, entry].slice(-undoLimit)
       current.redoStack = []
-      current.state = path.trim() === "" ? nextValue as State : set(current.state, path, nextValue)
+      if (path.trim() === "") {
+        current.state = structuredClone(nextValue) as State
+      } else {
+        setMut(current.state, path, nextValue)
+      }
     }))
 
     revalidate()
@@ -174,7 +178,7 @@ export function createForm<
       entries.reverse().forEach(entry => {
         newState = entry.path.trim() === ""
           ? entry.prevValue as State
-          : set(newState, entry.path, entry.prevValue);
+          : setMut(newState, entry.path, entry.prevValue);
       });
       current.state = newState
     }))
@@ -194,7 +198,7 @@ export function createForm<
       entries.forEach(entry => {
         newState = entry.path.trim() === ""
           ? entry.value as State
-          : set(newState, entry.path, entry.value);
+          : setMut(newState, entry.path, entry.value);
       });
       current.state = newState
     }))
