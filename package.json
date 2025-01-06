@@ -1,6 +1,6 @@
 {
   "name": "@gapu/formix",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "scripts": {
     "build": "tsup ./src/index.tsx --dts",
     "build:w": "tsup ./src/index.tsx --dts --watch",
@@ -18,16 +18,22 @@
     "@solidjs/testing-library": "^0.8.8",
     "@testing-library/jest-dom": "^6.4.6",
     "@types/bun": "latest",
-    "@vitest/coverage-v8": "^1.6.0",
+    "@vitest/coverage-v8": "2.1.8",
     "jsdom": "^24.1.0",
     "solid-js": "^1.8.18",
     "tsup": "^8.1.0",
+    "typescript": "^5.7.2",
     "vite-plugin-solid": "^2.10.2",
-    "vitest": "^2.0.3",
+    "vitest": "2.1.8",
     "zod": "^3.23.8"
   },
   "peerDependencies": {
-    "typescript": "^4.9.5",
-    "solid-js": "*"
+    "solid-js": "*",
+    "typescript": "*"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }
